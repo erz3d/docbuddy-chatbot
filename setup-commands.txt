@@ -5,5 +5,9 @@ npm create vite@latest . > React > TypeScript > ESLint > No
 in package.json     "typescript": "~7.0.2" >     "typescript": "~5.9.3",
 npm install
 
+#TailwindCSS
+npm install -D tailwindcss
+npm install tailwindcss @tailwindcss/vite
+
 #Start dev
 npm run dev
