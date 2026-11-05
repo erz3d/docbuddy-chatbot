@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="brand" x1="12" y1="12" x2="88" y2="88">
+      <stop stop-color="#11C5AD"/>
+      <stop offset="1" stop-color="#54E5D0"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="76" height="76" rx="25" fill="#11C5AD" fill-opacity=".12"/>
+  <path d="M50 23L62 37L78 43L67 57L63 75L47 68L29 73L31 54L22 40L41 35L50 23Z"
+        stroke="url(#brand)" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="50" cy="47" r="9" fill="#11C5AD"/>
+  <circle cx="29" cy="40" r="4" fill="#54E5D0"/>
+  <circle cx="70" cy="43" r="4" fill="#54E5D0"/>
+  <circle cx="63" cy="72" r="4" fill="#54E5D0"/>
+  <circle cx="32" cy="70" r="4" fill="#54E5D0"/>
+</svg>

@@ -8,6 +8,7 @@ npm install
 #TailwindCSS
 npm install -D tailwindcss
 npm install tailwindcss @tailwindcss/vite
+npm install lucide-react
 
 #Start dev
 npm run dev
