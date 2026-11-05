@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Menu, PanelLeftClose } from "lucide-react";
+import { askModel } from "./services/chatService";
 
 import Sidebar from "./components/layout/Sidebar";
 import ChatWindow from "./components/chat/ChatWindow";
@@ -64,9 +65,7 @@ export default function App() {
     useState<DocumentItem | null>(null);
   const [viewerPage, setViewerPage] = useState(1);
 
-  const generationTimer = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -78,9 +77,7 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (generationTimer.current) {
-        clearTimeout(generationTimer.current);
-      }
+      abortRef.current?.abort();
 
       documents.forEach((doc) => {
         if (doc.url) URL.revokeObjectURL(doc.url);
@@ -184,23 +181,21 @@ export default function App() {
   };
 
   const stopGeneration = () => {
-    if (generationTimer.current) {
-      clearTimeout(generationTimer.current);
-      generationTimer.current = null;
-    }
-
+    abortRef.current?.abort();
+    abortRef.current = null;
     setIsGenerating(false);
   };
-
-  const generateAnswer = (
+  
+  const generateAnswer = async (
     prompt: string,
     addUserMessage = true,
     replaceLastAnswer = false
   ) => {
-    if (generationTimer.current) {
-      clearTimeout(generationTimer.current);
-    }
-
+    abortRef.current?.abort();
+  
+    // Historique envoyé au modèle
+    let history: ChatMessage[];
+  
     if (addUserMessage) {
       const userMessage: ChatMessage = {
         id: createId(),
@@ -208,61 +203,62 @@ export default function App() {
         content: prompt,
         timestamp: Date.now(),
       };
-
-      setMessages((current) => [...current, userMessage]);
+  
+      history = [...messages, userMessage];
+      setMessages(history);
+    } else {
+      // Régénération : on garde tout jusqu'au dernier message utilisateur
+      let lastUserIndex = -1;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "user") {
+          lastUserIndex = i;
+          break;
+        }
+      }
+      history = messages.slice(0, lastUserIndex + 1);
     }
-
+  
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsGenerating(true);
-
-    generationTimer.current = setTimeout(() => {
-      const firstDocument = documents.find((doc) =>
-        selectedIds.includes(doc.id)
-      );
-
-      const answer: ChatMessage = {
-        id: createId(),
-        role: "assistant",
-        content:
-          documents.length === 0
-            ? "I can help you analyse documents once you upload a PDF. Please add a document to your library to get started."
-            : `Here is a simulated response to your question:\n\n"${prompt}"\n\nIn a connected version of DocBuddy, I would analyse the selected documents, retrieve relevant passages and provide a concise answer based on their content.\n\nThis is placeholder content for the frontend prototype.`,
-        citations: firstDocument
-          ? [
-              {
-                documentId: firstDocument.id,
-                documentName: firstDocument.name,
-                page: 1,
-              },
-            ]
-          : [],
-        timestamp: Date.now(),
-      };
-
-      setMessages((current) => {
-        if (replaceLastAnswer) {
-          const updated = [...current];
-          
-          let lastAssistantIndex = -1;
-
-          for (let i = updated.length - 1; i >= 0; i--) {
-            if (updated[i].role === "assistant") {
-              lastAssistantIndex = i;
-              break;
-            }
-          }
-
-          if (lastAssistantIndex >= 0) {
-            updated[lastAssistantIndex] = answer;
+  
+    let content: string;
+  
+    try {
+      content = await askModel(history, controller.signal);
+    } catch (error) {
+      if (controller.signal.aborted) return; // arrêt demandé par l'utilisateur
+  
+      content = `Erreur : ${
+        error instanceof Error ? error.message : "impossible de joindre le serveur."
+      }`;
+    }
+  
+    const answer: ChatMessage = {
+      id: createId(),
+      role: "assistant",
+      content,
+      citations: [],
+      timestamp: Date.now(),
+    };
+  
+    setMessages((current) => {
+      if (replaceLastAnswer) {
+        const updated = [...current];
+  
+        for (let i = updated.length - 1; i >= 0; i--) {
+          if (updated[i].role === "assistant") {
+            updated[i] = answer;
             return updated;
           }
         }
-
-        return [...current, answer];
-      });
-
-      setIsGenerating(false);
-      generationTimer.current = null;
-    }, 1200);
+      }
+  
+      return [...current, answer];
+    });
+  
+    setIsGenerating(false);
+    abortRef.current = null;
   };
 
   const sendMessage = (message: string) => {
