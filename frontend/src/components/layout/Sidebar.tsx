@@ -3,6 +3,7 @@ import {
     Files,
     Settings,
     Plus,
+    Bot,
     ChevronDown,
     Folder,
     Star,
@@ -47,12 +48,12 @@ import type  { ReactNode } from "react";
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex h-[76px] items-center justify-between border-b border-[var(--border)] px-6">
+          <div className="flex h-[76px] items-center justify-between border-b border-[var(--border)]">
             <div className="flex items-center gap-3">
               <img
-                src="/docbuddy-logo.svg"
+                src="/docbuddy-logo.png"
                 alt="DocBuddy logo"
-                className="h-9 w-9"
+                className="h-15 w-22"
               />
               <span className="text-xl font-bold tracking-tight">DocBuddy</span>
             </div>

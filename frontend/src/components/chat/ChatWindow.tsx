@@ -116,7 +116,7 @@ export default function ChatWindow({
           {messages.length === 0 ? (
             <div className="flex min-h-[55vh] flex-col items-center justify-center text-center">
               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-500/10">
-                <Sparkles size={30} className="accent-text" />
+                <Bot size={30} className="accent-text" />
               </div>
 
               <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
