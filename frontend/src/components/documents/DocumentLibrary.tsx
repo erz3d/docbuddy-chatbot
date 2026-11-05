@@ -166,7 +166,7 @@ export default function DocumentLibrary({
             return (
               <div
                 key={collection.id}
-                className="app-surface rounded-xl border p-4 transition hover:-translate-y-0.5"
+                className="app-surface rounded-xl border p-4 transition  hover:scale-105 duration-400"
               >
                 <div className="flex items-center justify-between">
                   <div

@@ -3,7 +3,6 @@ import {
     Files,
     Settings,
     Plus,
-    Bot,
     ChevronDown,
     Folder,
     Star,
