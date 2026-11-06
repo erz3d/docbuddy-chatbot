@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import {
   Paperclip,
-  Send,
+  Send,    
   FileText,
   X,
   ChevronDown,
