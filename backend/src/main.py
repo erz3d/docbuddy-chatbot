@@ -3,10 +3,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.chat import router as chat_router
+from src.database import initialize_database
 
 
 # Create FastAPI application
 app = FastAPI(title="DocBuddy API")
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    initialize_database()
 
 
 # Configure CORS for React frontend
