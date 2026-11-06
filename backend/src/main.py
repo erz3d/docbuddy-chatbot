@@ -1,7 +1,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from src.api.documents import router as documents_router
 from src.api.chat import router as chat_router
 from src.database import initialize_database
 
@@ -29,7 +29,7 @@ app.add_middleware(
 
 # Register chat routes
 app.include_router(chat_router)
-
+app.include_router(documents_router)
 
 # Health check endpoint
 @app.get("/api/health")
