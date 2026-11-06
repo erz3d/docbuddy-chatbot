@@ -36,4 +36,4 @@ async def generate_response(
         input=messages,
     )
 
-    return response.output_text
+    return response.output_text   
