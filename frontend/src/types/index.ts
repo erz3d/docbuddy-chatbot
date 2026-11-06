@@ -4,6 +4,7 @@ export type Page = "chat" | "documents" | "settings";
 
 export interface DocumentItem {
   id: string;
+  backendId?: string;
   name: string;
   size: number;
   status: "ready" | "uploading" | "failed";
