@@ -23,6 +23,10 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     content: str
 
+class ChatRequest(BaseModel):
+    messages: list[IncomingMessage]
+    documentIds: list[str] = []
+
 
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
@@ -41,7 +45,7 @@ async def chat(request: ChatRequest):
             for message in request.messages
         ]
 
-        answer = await generate_response(messages)
+        answer = await generate_response(messages, request.documentIds)
 
         return ChatResponse(content=answer)
 

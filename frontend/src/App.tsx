@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Menu, PanelLeftClose } from "lucide-react";
 import { askModel } from "./services/chatService";
+import { uploadDocument } from "./services/documentService";
 
 import Sidebar from "./components/layout/Sidebar";
 import ChatWindow from "./components/chat/ChatWindow";
@@ -95,34 +96,45 @@ export default function App() {
 
   const uploadFiles = (files: FileList | null) => {
     if (!files) return;
-
-    const uploaded: DocumentItem[] = [];
-
+  
     Array.from(files).forEach((file) => {
       if (file.type !== "application/pdf") {
         window.alert(`${file.name} is not a PDF file.`);
         return;
       }
-
+  
+      const id = createId();
+  
       const newDocument: DocumentItem = {
-        id: createId(),
+        id,
         name: file.name,
         size: file.size,
-        status: "ready",
+        status: "uploading",
         collectionId: null,
         url: URL.createObjectURL(file),
         addedAt: Date.now(),
       };
-
-      uploaded.push(newDocument);
+  
+      setDocuments((current) => [...current, newDocument]);
+      setSelectedIds((current) => [...new Set([...current, id])]);
+  
+      // send file to backend
+      uploadDocument(file)
+        .then(({ id: backendId }) => {
+          setDocuments((current) =>
+            current.map((doc) =>
+              doc.id === id ? { ...doc, status: "ready", backendId } : doc
+            )
+          );
+        })
+        .catch(() => {
+          setDocuments((current) =>
+            current.map((doc) =>
+              doc.id === id ? { ...doc, status: "failed" } : doc
+            )
+          );
+        });
     });
-
-    if (uploaded.length > 0) {
-      setDocuments((current) => [...current, ...uploaded]);
-      setSelectedIds((current) => [
-        ...new Set([...current, ...uploaded.map((doc) => doc.id)]),
-      ]);
-    }
   };
 
   const deleteDocument = (id: string) => {
@@ -225,7 +237,14 @@ export default function App() {
     let content: string;
   
     try {
-      content = await askModel(history, controller.signal);
+      const documentIds = documents
+    .filter(
+      (doc) =>
+        selectedIds.includes(doc.id) && doc.status === "ready" && doc.backendId
+    )
+    .map((doc) => doc.backendId as string);
+
+    content = await askModel(history, documentIds, controller.signal);
     } catch (error) {
       if (controller.signal.aborted) return; // arrêt demandé par l'utilisateur
   
