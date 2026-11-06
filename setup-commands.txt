@@ -12,3 +12,17 @@ npm install lucide-react
 
 #Start dev
 npm run dev
+
+
+#To run new 
+Launch venv
+
+cd C:\Users\User\Desktop\project2
+
+python -m pip install -r backend\requirements.txt
+
+cd frontend
+npm install
+cd ..
+
+python desktop.py
