@@ -4,6 +4,7 @@ export type Page = "chat" | "documents" | "settings";
 
 export interface DocumentItem {
   id: string;
+  backendId?: string;
   name: string;
   size: number;
   status: "ready" | "uploading" | "failed";
@@ -33,4 +34,12 @@ export interface ChatMessage {
   citations?: Citation[];
   liked?: boolean | null;
   timestamp: number;
+}
+
+export interface ConversationItem {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAt: string;
+  documentIds: string[];
 }

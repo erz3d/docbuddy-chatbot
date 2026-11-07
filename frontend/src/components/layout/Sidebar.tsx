@@ -7,8 +7,9 @@ import {
     Folder,
     Star,
     X,
+    Clock3,
 } from "lucide-react";
-import type { Collection, Page } from "../../types";
+import type { Collection, ConversationItem, Page } from "../../types";
 import type  { ReactNode } from "react";
   interface SidebarProps {
     page: Page;
@@ -17,6 +18,10 @@ import type  { ReactNode } from "react";
     onNewChat: () => void;
     mobileOpen: boolean;
     onMobileClose: () => void;
+    conversations: ConversationItem[];
+    activeConversationId: string | null;
+    onSelectConversation: (id: string) => void;
+    onSelectCollection: (id: string) => void;
   }
   
   export default function Sidebar({
@@ -26,6 +31,10 @@ import type  { ReactNode } from "react";
     onNewChat,
     mobileOpen,
     onMobileClose,
+    conversations,
+    activeConversationId,
+    onSelectConversation,
+    onSelectCollection,
   }: SidebarProps) {
     const navigate = (nextPage: Page) => {
       onNavigate(nextPage);
@@ -90,6 +99,18 @@ import type  { ReactNode } from "react";
               label="Chat"
               onClick={() => navigate("chat")}
             />
+
+            <div className="flex items-center gap-2 px-3 pb-2 pt-6">
+              <Clock3 size={13} className="app-muted" />
+              <p className="app-muted text-[10px] font-bold uppercase tracking-[0.16em]">Recent chats</p>
+            </div>
+            {conversations.map((conversation) => (
+              <button key={conversation.id} onClick={() => { onSelectConversation(conversation.id); onMobileClose(); }}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs ${activeConversationId === conversation.id ? "bg-teal-500/10 text-[var(--accent)]" : "app-muted app-surface-hover"}`}>
+                <MessageSquare size={15} className="shrink-0" />
+                <span className="truncate">{conversation.title}</span>
+              </button>
+            ))}
   
             <NavButton
               active={page === "documents"}
@@ -108,7 +129,7 @@ import type  { ReactNode } from "react";
             {collections.map((collection) => (
               <button
                 key={collection.id}
-                onClick={() => navigate("documents")}
+                onClick={() => { onSelectCollection(collection.id); onMobileClose(); }}
                 className="app-muted app-surface-hover flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition"
               >
                 <Folder size={17} style={{ color: collection.color }} />

@@ -11,6 +11,7 @@ import {
   Sparkles,
   Download,
   PanelRight,
+  X,
 } from "lucide-react";
 import type {
   ChatMessage,
@@ -113,6 +114,26 @@ export default function ChatWindow({
 
       <div className="flex-1 overflow-y-auto px-4 py-8 md:px-8">
         <div className="mx-auto max-w-4xl">
+          {selectedIds.length > 0 && (
+            <section className="mb-6 rounded-xl border border-teal-500/20 bg-teal-500/5 p-3">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-teal-500">Pinned for this chat</p>
+              <div className="flex flex-wrap gap-2">
+                {selectedIds.map((id) => {
+                  const document = documents.find((item) => item.id === id);
+                  if (!document) return null;
+                  return (
+                    <div key={id} className="app-surface flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs">
+                      <FileText size={14} className="shrink-0 text-red-400" />
+                      <span className="max-w-64 truncate font-medium">{document.name}</span>
+                      <button onClick={() => onToggleDocument(id)} title={`Unpin ${document.name}`} aria-label={`Unpin ${document.name}`} className="app-muted rounded p-0.5 hover:bg-[var(--surface-hover)]">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
           {messages.length === 0 ? (
             <div className="flex min-h-[55vh] flex-col items-center justify-center text-center">
               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-500/10">
@@ -283,7 +304,7 @@ export default function ChatWindow({
           disabled={isGenerating}
         />
         <p className="app-muted mt-3 text-center text-[10px]">
-          DocBuddy uses simulated responses in this frontend prototype.
+          Answers are generated from your selected PDFs and chat history.
         </p>
       </div>
     </div>
