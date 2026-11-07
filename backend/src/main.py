@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.documents import router as documents_router
 from src.api.chat import router as chat_router
+from src.api.conversations import router as conversations_router
+from src.api.settings import router as settings_router
 from src.database import initialize_database
 
 
@@ -22,7 +24,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
@@ -30,6 +32,8 @@ app.add_middleware(
 # Register chat routes
 app.include_router(chat_router)
 app.include_router(documents_router)
+app.include_router(conversations_router)
+app.include_router(settings_router)
 
 # Health check endpoint
 @app.get("/api/health")

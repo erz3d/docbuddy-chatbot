@@ -9,8 +9,10 @@ import {
   Folder,
   Eye,
   X,
+  MessageSquarePlus,
+  Check,
 } from "lucide-react";
-import type { Collection, DocumentItem } from "../../types";
+import type { Collection, ConversationItem, DocumentItem } from "../../types";
 
 interface DocumentLibraryProps {
   documents: DocumentItem[];
@@ -18,11 +20,16 @@ interface DocumentLibraryProps {
   selectedIds: string[];
   onUpload: (files: FileList | null) => void;
   onDelete: (id: string) => void;
-  onToggleSelect: (id: string) => void;
   onCreateCollection: (name: string, color: string) => void;
   onToggleFavorite: (id: string) => void;
   onMoveDocument: (documentId: string, collectionId: string | null) => void;
   onViewDocument: (document: DocumentItem) => void;
+  onSelectForChat: (id: string) => void;
+  activeCollectionId: string | null;
+  conversations: ConversationItem[];
+  onOpenCollection: (id: string) => void;
+  onBackToCollections: () => void;
+  onOpenConversation: (id: string) => void;
 }
 
 const collectionColors = [
@@ -39,11 +46,16 @@ export default function DocumentLibrary({
   selectedIds,
   onUpload,
   onDelete,
-  onToggleSelect,
   onCreateCollection,
   onToggleFavorite,
   onMoveDocument,
   onViewDocument,
+  onSelectForChat,
+  activeCollectionId,
+  conversations,
+  onOpenCollection,
+  onBackToCollections,
+  onOpenConversation,
 }: DocumentLibraryProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
@@ -68,6 +80,73 @@ export default function DocumentLibrary({
     setCollectionName("");
     setShowCreate(false);
   };
+
+  const activeCollection = collections.find((item) => item.id === activeCollectionId);
+  if (activeCollection) {
+    const collectionDocuments = documents.filter((doc) => doc.collectionId === activeCollection.id);
+    const collectionDocumentIds = new Set(collectionDocuments.map((doc) => doc.id));
+    const relatedConversations = conversations.filter((conversation) =>
+      conversation.documentIds?.some((id) => collectionDocumentIds.has(id))
+    );
+
+    return (
+      <div className="h-full flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-5xl p-5 md:p-8">
+          <button onClick={onBackToCollections} className="app-muted app-surface-hover rounded-lg px-3 py-2 text-xs">← All documents and collections</button>
+          <div className="mt-6 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ backgroundColor: `${activeCollection.color}20` }}>
+              <Folder size={22} style={{ color: activeCollection.color }} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">{activeCollection.name}</h1>
+              <p className="app-muted mt-1 text-sm">{collectionDocuments.length} {collectionDocuments.length === 1 ? "document" : "documents"}</p>
+            </div>
+          </div>
+
+          <section className="mt-8">
+            <h2 className="text-sm font-semibold">Documents in this collection</h2>
+            <div className="mt-3 space-y-2">
+              {collectionDocuments.length === 0 ? (
+                <div className="app-surface rounded-xl border p-6 text-sm app-muted">No documents have been added to this collection yet.</div>
+              ) : collectionDocuments.map((doc) => (
+                <div key={doc.id} className="app-surface flex flex-wrap items-center gap-3 rounded-xl border p-3">
+                  <FileText size={19} className="text-red-400" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{doc.name}</p>
+                    <p className="app-muted mt-1 text-xs">{(doc.size / 1024 / 1024).toFixed(2)} MB · {doc.status === "ready" ? "Ready" : doc.status}</p>
+                  </div>
+                  <button onClick={() => onSelectForChat(doc.id)} className="app-muted app-surface-hover rounded-lg px-3 py-2 text-xs">{selectedIds.includes(doc.id) ? "Open in chat" : "Pin in chat"}</button>
+                  <button onClick={() => onViewDocument(doc)} title="View PDF" className="app-muted rounded-lg p-2 hover:bg-[var(--surface-hover)]"><Eye size={16} /></button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mt-9">
+            <h2 className="text-sm font-semibold">Conversations that used these documents</h2>
+            <p className="app-muted mt-1 text-xs">Chats where at least one document from this collection was pinned.</p>
+            <div className="mt-3 space-y-2">
+              {relatedConversations.length === 0 ? (
+                <div className="app-surface rounded-xl border p-6 text-sm app-muted">No conversations have pinned these documents yet.</div>
+              ) : relatedConversations.map((conversation) => {
+                const pinnedNames = collectionDocuments.filter((doc) => conversation.documentIds.includes(doc.id)).map((doc) => doc.name);
+                return (
+                  <button key={conversation.id} onClick={() => onOpenConversation(conversation.id)} className="app-surface app-surface-hover flex w-full items-start gap-3 rounded-xl border p-4 text-left">
+                    <MessageSquarePlus size={17} className="mt-0.5 shrink-0 text-teal-500" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{conversation.title}</span>
+                      <span className="app-muted mt-1 block truncate text-xs">Pinned: {pinnedNames.join(", ")}</span>
+                      {conversation.preview && <span className="app-muted mt-1 block truncate text-xs">{conversation.preview}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex-1 overflow-y-auto">
@@ -166,7 +245,11 @@ export default function DocumentLibrary({
             return (
               <div
                 key={collection.id}
-                className="app-surface rounded-xl border p-4 transition  hover:scale-105 duration-400"
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenCollection(collection.id)}
+                onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpenCollection(collection.id); }}
+                className="app-surface cursor-pointer rounded-xl border p-4 transition hover:scale-105 duration-400"
               >
                 <div className="flex items-center justify-between">
                   <div
@@ -177,7 +260,7 @@ export default function DocumentLibrary({
                   </div>
 
                   <button
-                    onClick={() => onToggleFavorite(collection.id)}
+                    onClick={(event) => { event.stopPropagation(); onToggleFavorite(collection.id); }}
                     className="app-muted rounded-lg p-2 hover:bg-[var(--surface-hover)]"
                     title="Favourite collection"
                   >
@@ -248,14 +331,6 @@ export default function DocumentLibrary({
                 key={doc.id}
                 className="app-surface flex flex-wrap items-center gap-3 rounded-xl border p-3 sm:flex-nowrap"
               >
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(doc.id)}
-                  onChange={() => onToggleSelect(doc.id)}
-                  className="accent-teal-500"
-                  aria-label={`Select ${doc.name}`}
-                />
-
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
                   <FileText size={19} />
                 </div>
@@ -286,6 +361,15 @@ export default function DocumentLibrary({
                     </option>
                   ))}
                 </select>
+
+                <button
+                  onClick={() => onSelectForChat(doc.id)}
+                  title="Use this PDF in chat"
+                  className="app-muted app-surface-hover flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+                >
+                  {selectedIds.includes(doc.id) ? <Check size={15} /> : <MessageSquarePlus size={15} />}
+                  <span className="hidden md:inline">{selectedIds.includes(doc.id) ? "In chat" : "Use in chat"}</span>
+                </button>
 
                 <button
                   onClick={() => onViewDocument(doc)}

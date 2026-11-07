@@ -35,3 +35,11 @@ export interface ChatMessage {
   liked?: boolean | null;
   timestamp: number;
 }
+
+export interface ConversationItem {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAt: string;
+  documentIds: string[];
+}
