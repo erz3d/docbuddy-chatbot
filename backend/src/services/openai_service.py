@@ -30,10 +30,6 @@ async def generate_response(
             "If the answer isn't there, say it.\n\n" + context
         )
 
-    response = await client.responses.create(
-        model=MODEL,
-        instructions=instructions,
-        input=messages,
-    )
+    response = await client.responses.create( model=MODEL, instructions=instructions,input=messages,)
 
     return response.output_text
