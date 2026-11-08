@@ -2,7 +2,7 @@
 import type { ChatMessage } from "../types";
 import { api } from "./api";
 
-export async function askModel(messages: ChatMessage[], documentIds: string[], conversationId: string, signal?: AbortSignal): Promise<{ content: string; id: string; timestamp: string }> {
+export async function askModel(messages: ChatMessage[], documentIds: string[], conversationId: string | null, signal?: AbortSignal): Promise<{ content: string; id: string; timestamp: string; conversationId: string }> {
   return api("/api/chat", {
     method: "POST",
     headers: {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Upload,
   FileText,
@@ -10,7 +10,7 @@ import {
   Eye,
   X,
   MessageSquarePlus,
-  Check,
+  MoreVertical,
 } from "lucide-react";
 import type { Collection, ConversationItem, DocumentItem } from "../../types";
 
@@ -22,7 +22,8 @@ interface DocumentLibraryProps {
   onDelete: (id: string) => void;
   onCreateCollection: (name: string, color: string) => void;
   onToggleFavorite: (id: string) => void;
-  onMoveDocument: (documentId: string, collectionId: string | null) => void;
+  onMoveDocument: (documentId: string, collectionId: string) => void;
+  onRemoveFromCollection: (documentId: string, collectionId: string) => void;
   onViewDocument: (document: DocumentItem) => void;
   onSelectForChat: (id: string) => void;
   activeCollectionId: string | null;
@@ -43,12 +44,13 @@ const collectionColors = [
 export default function DocumentLibrary({
   documents,
   collections,
-  selectedIds,
+  selectedIds: _selectedIds,
   onUpload,
   onDelete,
   onCreateCollection,
   onToggleFavorite,
   onMoveDocument,
+  onRemoveFromCollection,
   onViewDocument,
   onSelectForChat,
   activeCollectionId,
@@ -63,6 +65,59 @@ export default function DocumentLibrary({
   const [collectionColor, setCollectionColor] = useState(collectionColors[0]);
   const [showCreate, setShowCreate] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [openCollectionPicker, setOpenCollectionPicker] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setOpenMenu(null);
+        setOpenCollectionPicker(null);
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [openMenu]);
+
+  const renderDocumentActions = (doc: DocumentItem, inCollection = false) => (
+    <div className="relative" ref={openMenu === doc.id ? menuRef : undefined}>
+      <button
+        onClick={() => { setOpenMenu(openMenu === doc.id ? null : doc.id); setOpenCollectionPicker(null); }}
+        title="Document actions"
+        aria-label={`Actions for ${doc.name}`}
+        aria-expanded={openMenu === doc.id}
+        className="app-muted app-surface-hover rounded-lg p-2"
+      >
+        <MoreVertical size={17} />
+      </button>
+      {openMenu === doc.id && (
+        <div className="app-surface absolute right-0 top-10 z-40 w-44 rounded-xl border p-1.5 shadow-xl">
+          {inCollection ? (
+            <button onClick={() => { onViewDocument(doc); setOpenMenu(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><Eye size={14} />View</button>
+          ) : null}
+          <button onClick={() => { onSelectForChat(doc.id); setOpenMenu(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><MessageSquarePlus size={14} />Use in chat</button>
+          {!inCollection && <button onClick={() => { onViewDocument(doc); setOpenMenu(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><Eye size={14} />View</button>}
+          <div className="relative">
+            <button onClick={() => setOpenCollectionPicker(openCollectionPicker === doc.id ? null : doc.id)} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><FolderPlus size={14} />Add to collection</button>
+            {openCollectionPicker === doc.id && (
+              <div className="app-surface absolute left-full top-0 z-50 ml-2 max-h-52 w-48 overflow-y-auto rounded-xl border p-1.5 shadow-xl">
+                {collections.length === 0 ? <p className="app-muted px-2.5 py-2 text-xs">No collections yet</p> : collections.map((collection) => (
+                  <button key={collection.id} onClick={() => { onMoveDocument(doc.id, collection.id); setOpenMenu(null); setOpenCollectionPicker(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><Folder size={14} style={{ color: collection.color }} /><span className="truncate">{collection.name}</span></button>
+                ))}
+              </div>
+            )}
+          </div>
+          {inCollection ? (
+            <button onClick={() => { onRemoveFromCollection(doc.id, activeCollectionId!); setOpenMenu(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs">Remove from collection</button>
+          ) : (
+            <button onClick={() => { onDelete(doc.id); setOpenMenu(null); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-red-400 hover:bg-red-500/10"><Trash2 size={14} />Delete</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   const filteredDocuments = documents
     .filter((doc) => doc.name.toLowerCase().includes(search.toLowerCase()))
@@ -70,8 +125,8 @@ export default function DocumentLibrary({
       filter === "all"
         ? true
         : filter === "null"
-          ? doc.collectionId === null
-          : doc.collectionId === filter
+          ? (doc.collectionIds?.length ?? (doc.collectionId ? 1 : 0)) === 0
+          : doc.collectionIds?.includes(filter) || doc.collectionId === filter
     )    .sort((a, b) => b.addedAt - a.addedAt);
 
   const handleCreate = () => {
@@ -83,7 +138,7 @@ export default function DocumentLibrary({
 
   const activeCollection = collections.find((item) => item.id === activeCollectionId);
   if (activeCollection) {
-    const collectionDocuments = documents.filter((doc) => doc.collectionId === activeCollection.id);
+    const collectionDocuments = documents.filter((doc) => doc.collectionIds?.includes(activeCollection.id) || doc.collectionId === activeCollection.id);
     const collectionDocumentIds = new Set(collectionDocuments.map((doc) => doc.id));
     const relatedConversations = conversations.filter((conversation) =>
       conversation.documentIds?.some((id) => collectionDocumentIds.has(id))
@@ -115,8 +170,7 @@ export default function DocumentLibrary({
                     <p className="truncate text-sm font-medium">{doc.name}</p>
                     <p className="app-muted mt-1 text-xs">{(doc.size / 1024 / 1024).toFixed(2)} MB · {doc.status === "ready" ? "Ready" : doc.status}</p>
                   </div>
-                  <button onClick={() => onSelectForChat(doc.id)} className="app-muted app-surface-hover rounded-lg px-3 py-2 text-xs">{selectedIds.includes(doc.id) ? "Open in chat" : "Pin in chat"}</button>
-                  <button onClick={() => onViewDocument(doc)} title="View PDF" className="app-muted rounded-lg p-2 hover:bg-[var(--surface-hover)]"><Eye size={16} /></button>
+                  {renderDocumentActions(doc, true)}
                 </div>
               ))}
             </div>
@@ -239,7 +293,7 @@ export default function DocumentLibrary({
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {collections.map((collection) => {
             const count = documents.filter(
-              (doc) => doc.collectionId === collection.id
+              (doc) => doc.collectionIds?.includes(collection.id) || doc.collectionId === collection.id
             ).length;
 
             return (
@@ -343,49 +397,7 @@ export default function DocumentLibrary({
                   </p>
                 </div>
 
-                <select
-                  value={doc.collectionId ?? "null"}
-                  onChange={(e) =>
-                    onMoveDocument(
-                      doc.id,
-                      e.target.value === "null" ? null : e.target.value
-                    )
-                  }
-                  className="app-input max-w-36 rounded-lg px-2 py-2 text-xs"
-                  aria-label={`Move ${doc.name} to collection`}
-                >
-                  <option value="null">Unsorted</option>
-                  {collections.map((collection) => (
-                    <option key={collection.id} value={collection.id}>
-                      {collection.name}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  onClick={() => onSelectForChat(doc.id)}
-                  title="Use this PDF in chat"
-                  className="app-muted app-surface-hover flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
-                >
-                  {selectedIds.includes(doc.id) ? <Check size={15} /> : <MessageSquarePlus size={15} />}
-                  <span className="hidden md:inline">{selectedIds.includes(doc.id) ? "In chat" : "Use in chat"}</span>
-                </button>
-
-                <button
-                  onClick={() => onViewDocument(doc)}
-                  title="View document"
-                  className="app-muted rounded-lg p-2 hover:bg-[var(--surface-hover)]"
-                >
-                  <Eye size={16} />
-                </button>
-
-                <button
-                  onClick={() => onDelete(doc.id)}
-                  title="Delete document"
-                  className="rounded-lg p-2 text-red-400 hover:bg-red-500/10"
-                >
-                  <Trash2 size={16} />
-                </button>
+                {renderDocumentActions(doc)}
               </div>
             ))
           )}

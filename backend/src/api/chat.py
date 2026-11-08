@@ -26,11 +26,12 @@ class ChatResponse(BaseModel):
     content: str
     id: str
     timestamp: str
+    conversationId: str
 
 class ChatRequest(BaseModel):
     messages: list[IncomingMessage]
     documentIds: list[str] = []
-    conversationId: str
+    conversationId: str | None = None
 
 
 @router.post("/api/chat", response_model=ChatResponse)
@@ -53,31 +54,36 @@ async def chat(request: ChatRequest):
         answer = await generate_response(messages, request.documentIds)
         answer_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
+        conversation_id = request.conversationId or str(uuid.uuid4())
         with get_connection() as db:
-            if not db.execute("SELECT 1 FROM conversations WHERE id=?", (request.conversationId,)).fetchone():
-                raise HTTPException(404, "Conversation not found")
-            db.execute("DELETE FROM messages WHERE conversation_id=?", (request.conversationId,))
+            if request.conversationId:
+                if not db.execute("SELECT 1 FROM conversations WHERE id=?", (conversation_id,)).fetchone():
+                    raise HTTPException(404, "Conversation not found")
+                db.execute("DELETE FROM messages WHERE conversation_id=?", (conversation_id,))
+            else:
+                title = next((m.content for m in request.messages if m.role == "user"), "New conversation")
+                db.execute("INSERT INTO conversations(id,title) VALUES(?,?)", (conversation_id, title[:70] or "New conversation"))
             document_ids = list(dict.fromkeys(request.documentIds))
-            db.execute("DELETE FROM conversation_documents WHERE conversation_id=?", (request.conversationId,))
+            db.execute("DELETE FROM conversation_documents WHERE conversation_id=?", (conversation_id,))
             for document_id in document_ids:
                 if db.execute("SELECT 1 FROM documents WHERE id=?", (document_id,)).fetchone():
                     db.execute("INSERT INTO conversation_documents(conversation_id,document_id) VALUES(?,?)",
-                               (request.conversationId, document_id))
+                               (conversation_id, document_id))
                     db.execute("INSERT OR IGNORE INTO conversation_document_history(conversation_id,document_id) VALUES(?,?)",
-                               (request.conversationId, document_id))
+                               (conversation_id, document_id))
             for item in request.messages:
                 stamp = (datetime.fromtimestamp(item.timestamp / 1000, timezone.utc).isoformat()
                          if isinstance(item.timestamp, int) else item.timestamp or now)
                 db.execute("INSERT INTO messages(id,conversation_id,role,content,liked,created_at) VALUES(?,?,?,?,?,?)",
-                           (item.id or str(uuid.uuid4()), request.conversationId, item.role, item.content,
+                           (item.id or str(uuid.uuid4()), conversation_id, item.role, item.content,
                             None if item.liked is None else int(item.liked),
                             stamp))
             db.execute("INSERT INTO messages(id,conversation_id,role,content,created_at) VALUES(?,?,?,?,?)",
-                       (answer_id, request.conversationId, "assistant", answer, now))
+                       (answer_id, conversation_id, "assistant", answer, now))
             first_user = next((m.content for m in request.messages if m.role == "user"), "New conversation")
-            db.execute("UPDATE conversations SET title=?,updated_at=? WHERE id=?",
-                       (first_user[:70], now, request.conversationId))
-        return {"content": answer, "id": answer_id, "timestamp": now}
+            db.execute("UPDATE conversations SET title=CASE WHEN title='New conversation' THEN ? ELSE title END,updated_at=? WHERE id=?",
+                       (first_user[:70], now, conversation_id))
+        return {"content": answer, "id": answer_id, "timestamp": now, "conversationId": conversation_id}
 
     except HTTPException:
         raise

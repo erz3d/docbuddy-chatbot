@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from src.database import get_connection
@@ -9,11 +9,11 @@ router = APIRouter()
 
 
 @router.get("/api/conversations")
-def list_conversations():
+def list_conversations(archived: bool = Query(False)):
     with get_connection() as db:
         rows = db.execute("""SELECT c.id,c.title,c.created_at,c.updated_at,
             (SELECT content FROM messages WHERE conversation_id=c.id ORDER BY created_at DESC LIMIT 1) preview
-            FROM conversations c ORDER BY c.updated_at DESC""").fetchall()
+            FROM conversations c WHERE c.archived=? ORDER BY c.updated_at DESC""", (int(archived),)).fetchall()
         document_rows = db.execute("SELECT conversation_id,document_id FROM conversation_document_history").fetchall()
     documents_by_chat: dict[str, list[str]] = {}
     for row in document_rows:
@@ -53,6 +53,46 @@ def get_conversation(conversation_id: str):
 
 class PinnedDocuments(BaseModel):
     documentIds: list[str]
+
+
+class ConversationRename(BaseModel):
+    title: str
+
+
+@router.patch("/api/conversations/{conversation_id}")
+def rename_conversation(conversation_id: str, payload: ConversationRename):
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(400, "Conversation title is required")
+    with get_connection() as db:
+        cursor = db.execute("UPDATE conversations SET title=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",
+                            (title[:120], conversation_id))
+        if not cursor.rowcount:
+            raise HTTPException(404, "Conversation not found")
+    return {"id": conversation_id, "title": title[:120]}
+
+
+class ArchiveUpdate(BaseModel):
+    archived: bool
+
+
+@router.patch("/api/conversations/{conversation_id}/archive")
+def set_conversation_archived(conversation_id: str, payload: ArchiveUpdate):
+    with get_connection() as db:
+        cursor = db.execute("UPDATE conversations SET archived=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",
+                            (int(payload.archived), conversation_id))
+        if not cursor.rowcount:
+            raise HTTPException(404, "Conversation not found")
+    return {"id": conversation_id, "archived": payload.archived}
+
+
+@router.delete("/api/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str):
+    with get_connection() as db:
+        cursor = db.execute("DELETE FROM conversations WHERE id=?", (conversation_id,))
+        if not cursor.rowcount:
+            raise HTTPException(404, "Conversation not found")
+    return {"ok": True}
 
 
 @router.put("/api/conversations/{conversation_id}/documents")

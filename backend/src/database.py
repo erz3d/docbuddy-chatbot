@@ -61,10 +61,18 @@ def initialize_database() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_documents_collection
                 ON documents(collection_id);
+            CREATE TABLE IF NOT EXISTS document_collections (
+                document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+                PRIMARY KEY (document_id, collection_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_document_collections_collection
+                ON document_collections(collection_id, document_id);
 
             CREATE TABLE IF NOT EXISTS conversations (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL DEFAULT 'New conversation',
+                archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
                 updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
             );
@@ -112,3 +120,10 @@ def initialize_database() -> None:
             );
             """
         )
+        conversation_columns = {row["name"] for row in connection.execute("PRAGMA table_info(conversations)")}
+        if "archived" not in conversation_columns:
+            connection.execute("ALTER TABLE conversations ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))")
+        connection.execute("""
+            INSERT OR IGNORE INTO document_collections(document_id, collection_id)
+            SELECT id, collection_id FROM documents WHERE collection_id IS NOT NULL
+        """)

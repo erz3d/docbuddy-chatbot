@@ -37,7 +37,7 @@ export default function PDFViewer({
         {document.id ? (
           <iframe
             key={document.id}
-            src={documentFileUrl(document.id)}
+            src={document.url ?? documentFileUrl(document.id)}
             title={document.name}
             className="h-full min-h-[500px] w-full rounded-lg bg-white"
           />

@@ -60,8 +60,12 @@ def update_collection(collection_id: str, payload: CollectionUpdate):
 def list_documents():
     with get_connection() as db:
         rows = db.execute("SELECT id,name,size_bytes,collection_id,status,added_at FROM documents ORDER BY added_at DESC").fetchall()
+        memberships = db.execute("SELECT document_id, collection_id FROM document_collections").fetchall()
+    by_document: dict[str, list[str]] = {}
+    for membership in memberships:
+        by_document.setdefault(membership["document_id"], []).append(membership["collection_id"])
     return [{"id": r["id"], "name": r["name"], "size": r["size_bytes"],
-             "collectionId": r["collection_id"], "status": r["status"],
+             "collectionId": r["collection_id"], "collectionIds": by_document.get(r["id"], []), "status": r["status"],
              "addedAt": r["added_at"]} for r in rows]
 
 
@@ -105,6 +109,36 @@ def update_document(document_id: str, payload: DocumentUpdate):
                             (payload.collectionId, document_id))
         if not cursor.rowcount:
             raise HTTPException(404, "Document not found")
+        db.execute("DELETE FROM document_collections WHERE document_id=?", (document_id,))
+        if payload.collectionId:
+            db.execute("INSERT INTO document_collections(document_id,collection_id) VALUES(?,?)",
+                       (document_id, payload.collectionId))
+    return {"ok": True}
+
+
+@router.post("/api/documents/{document_id}/collections/{collection_id}")
+def add_document_to_collection(document_id: str, collection_id: str):
+    with get_connection() as db:
+        if not db.execute("SELECT 1 FROM collections WHERE id=?", (collection_id,)).fetchone():
+            raise HTTPException(404, "Collection not found")
+        if not db.execute("SELECT 1 FROM documents WHERE id=?", (document_id,)).fetchone():
+            raise HTTPException(404, "Document not found")
+        db.execute("INSERT OR IGNORE INTO document_collections(document_id,collection_id) VALUES(?,?)",
+                   (document_id, collection_id))
+        db.execute("UPDATE documents SET collection_id=? WHERE id=? AND collection_id IS NULL",
+                   (collection_id, document_id))
+    return {"ok": True}
+
+
+@router.delete("/api/documents/{document_id}/collections/{collection_id}")
+def remove_document_from_collection(document_id: str, collection_id: str):
+    with get_connection() as db:
+        db.execute("DELETE FROM document_collections WHERE document_id=? AND collection_id=?",
+                   (document_id, collection_id))
+        remaining = db.execute("SELECT collection_id FROM document_collections WHERE document_id=? ORDER BY collection_id LIMIT 1",
+                               (document_id,)).fetchone()
+        db.execute("UPDATE documents SET collection_id=? WHERE id=?",
+                   (remaining["collection_id"] if remaining else None, document_id))
     return {"ok": True}
 
 

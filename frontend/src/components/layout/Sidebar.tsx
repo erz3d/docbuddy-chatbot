@@ -1,5 +1,5 @@
+import { useEffect, useRef, useState } from "react";
 import {
-    MessageSquare,
     Files,
     Settings,
     Plus,
@@ -8,6 +8,11 @@ import {
     Star,
     X,
     Clock3,
+    Pencil,
+    MoreHorizontal,
+    Archive,
+    Trash2,
+    Check,
 } from "lucide-react";
 import type { Collection, ConversationItem, Page } from "../../types";
 import type  { ReactNode } from "react";
@@ -22,6 +27,10 @@ import type  { ReactNode } from "react";
     activeConversationId: string | null;
     onSelectConversation: (id: string) => void;
     onSelectCollection: (id: string) => void;
+    onRenameConversation: (id: string, title: string) => void;
+    onArchiveConversation: (id: string) => void;
+    onDeleteConversation: (id: string) => void;
+    archivedCount: number;
   }
   
   export default function Sidebar({
@@ -35,7 +44,24 @@ import type  { ReactNode } from "react";
     activeConversationId,
     onSelectConversation,
     onSelectCollection,
+    onRenameConversation,
+    onArchiveConversation,
+    onDeleteConversation,
+    archivedCount,
   }: SidebarProps) {
+    const [collectionsOpen, setCollectionsOpen] = useState(true);
+    const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+    const [draftTitle, setDraftTitle] = useState("");
+    const [menuConversationId, setMenuConversationId] = useState<string | null>(null);
+    const menuPanelRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (!menuConversationId) return;
+      const closeOnOutsideClick = (event: MouseEvent) => {
+        if (!menuPanelRef.current?.contains(event.target as Node)) setMenuConversationId(null);
+      };
+      document.addEventListener("mousedown", closeOnOutsideClick);
+      return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+    }, [menuConversationId]);
     const navigate = (nextPage: Page) => {
       onNavigate(nextPage);
       onMobileClose();
@@ -89,44 +115,54 @@ import type  { ReactNode } from "react";
           </div>
   
           <nav className="flex-1 space-y-1 overflow-y-auto px-3">
-            <p className="app-muted px-3 pb-2 pt-3 text-[10px] font-bold uppercase tracking-[0.16em]">
-              Workspace
-            </p>
-
-            <NavButton
-              active={page === "chat"}
-              icon={<MessageSquare size={18} />}
-              label="Chat"
-              onClick={() => navigate("chat")}
-            />
-
-            <div className="flex items-center gap-2 px-3 pb-2 pt-6">
-              <Clock3 size={13} className="app-muted" />
-              <p className="app-muted text-[10px] font-bold uppercase tracking-[0.16em]">Recent chats</p>
-            </div>
-            {conversations.map((conversation) => (
-              <button key={conversation.id} onClick={() => { onSelectConversation(conversation.id); onMobileClose(); }}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs ${activeConversationId === conversation.id ? "bg-teal-500/10 text-[var(--accent)]" : "app-muted app-surface-hover"}`}>
-                <MessageSquare size={15} className="shrink-0" />
-                <span className="truncate">{conversation.title}</span>
-              </button>
+            <button onClick={() => navigate("history")} className={`app-muted app-surface-hover mt-6 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left ${page === "history" ? "bg-teal-500/10 text-[var(--accent)]" : ""}`}>
+              <Clock3 size={14} />
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em]">Chat history</span>
+            </button>
+            {conversations.slice(0, 8).map((conversation) => (
+              <div key={conversation.id} className={`relative flex items-center gap-1 rounded-lg ${activeConversationId === conversation.id ? "bg-teal-500/10 text-[var(--accent)]" : "app-muted app-surface-hover"}`}>
+                {editingConversationId === conversation.id ? (
+                  <form className="flex min-w-0 flex-1 gap-1 p-1" onSubmit={(event) => { event.preventDefault(); const title = draftTitle.trim(); if (title) onRenameConversation(conversation.id, title); setEditingConversationId(null); }}>
+                    <input autoFocus value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} className="app-input min-w-0 flex-1 rounded px-2 py-1 text-xs" aria-label="Discussion title" />
+                    <button className="app-muted px-1" title="Save title"><Check size={14} /></button>
+                    <button type="button" onClick={() => setEditingConversationId(null)} className="app-muted px-1" title="Cancel"><X size={14} /></button>
+                  </form>
+                ) : (
+                  <>
+                    <button onClick={() => { onSelectConversation(conversation.id); onMobileClose(); }} className="flex min-w-0 flex-1 items-center px-3 py-2 text-left text-[11px]">
+                      <span className="truncate">{conversation.title}</span>
+                    </button>
+                    <button onClick={() => setMenuConversationId(menuConversationId === conversation.id ? null : conversation.id)} className="app-muted rounded p-1.5 hover:bg-[var(--surface-hover)]" title="Discussion options" aria-label={`Options for ${conversation.title}`}>
+                      <MoreHorizontal size={15} />
+                    </button>
+                    {menuConversationId === conversation.id && (
+                      <div ref={menuPanelRef} className="app-surface absolute right-1 top-9 z-40 w-36 rounded-xl border p-1.5 shadow-xl">
+                        <button onClick={() => { setEditingConversationId(conversation.id); setDraftTitle(conversation.title); setMenuConversationId(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><Pencil size={13} />Rename</button>
+                        <button onClick={() => { onArchiveConversation(conversation.id); setMenuConversationId(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><Archive size={13} />Archive</button>
+                        <button onClick={() => { onDeleteConversation(conversation.id); setMenuConversationId(null); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-red-400 hover:bg-red-500/10"><Trash2 size={13} />Delete</button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             ))}
   
-            <NavButton
-              active={page === "documents"}
-              icon={<Files size={18} />}
-              label="Document library"
+            <button
               onClick={() => navigate("documents")}
-            />
+              className="accent-button mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
+            >
+              <Files size={18} />
+              Document library
+            </button>
   
-            <div className="flex items-center justify-between px-3 pb-2 pt-8">
+            <button onClick={() => setCollectionsOpen((open) => !open)} aria-expanded={collectionsOpen} className="app-muted app-surface-hover flex w-full items-center justify-between rounded px-3 pb-2 pt-8 text-left">
               <p className="app-muted text-[10px] font-bold uppercase tracking-[0.16em]">
                 Collections
               </p>
-              <ChevronDown size={14} className="app-muted" />
-            </div>
+              <ChevronDown size={14} className={`app-muted transition-transform ${collectionsOpen ? "rotate-0" : "-rotate-90"}`} />
+            </button>
   
-            {collections.map((collection) => (
+            {collectionsOpen && collections.map((collection) => (
               <button
                 key={collection.id}
                 onClick={() => { onSelectCollection(collection.id); onMobileClose(); }}
@@ -140,19 +176,21 @@ import type  { ReactNode } from "react";
               </button>
             ))}
   
-            <div className="pt-8">
-              <p className="app-muted px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em]">
-                Preferences
-              </p>
-  
-              <NavButton
-                active={page === "settings"}
-                icon={<Settings size={18} />}
-                label="Settings"
-                onClick={() => navigate("settings")}
-              />
-            </div>
           </nav>
+
+          <div className="space-y-1 px-4 pb-2">
+            <NavButton
+              active={page === "settings"}
+              icon={<Settings size={18} />}
+              label="Settings"
+              onClick={() => navigate("settings")}
+            />
+            <button onClick={() => navigate("archive")} className={`app-muted app-surface-hover flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm ${page === "archive" ? "bg-teal-500/10 text-[var(--accent)]" : ""}`}>
+              <Archive size={17} />
+              <span className="flex-1 text-left">Archive</span>
+              {archivedCount > 0 && <span className="text-xs">{archivedCount}</span>}
+            </button>
+          </div>
   
           <div className="border-t border-[var(--border)] p-4">
             <div className="flex items-center gap-3 rounded-xl p-2">
