@@ -2,6 +2,5 @@ node_modules
 dist
 .env
 __pycache__
-data/*.db
 data/*.db-shm
 data/*.db-wal
