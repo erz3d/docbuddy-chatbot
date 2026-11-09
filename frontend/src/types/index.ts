@@ -9,6 +9,7 @@ export interface DocumentItem {
   name: string;
   size: number;
   status: "ready" | "uploading" | "failed";
+  error?: string | null;
   collectionId: string | null;
   collectionIds?: string[];
   url?: string;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import { askModel } from "./services/chatService";
-import { uploadDocument } from "./services/documentService";
+import { uploadDocument, waitForDocumentProcessing } from "./services/documentService";
 import { api, documentFileUrl } from "./services/api";
 
 import Sidebar from "./components/layout/Sidebar";
@@ -87,7 +87,19 @@ export default function App() {
         setTheme(savedSettings.theme);
         setAppName(savedSettings.appName);
         setCollections(savedCollections);
-        setDocuments(savedDocuments.map((doc) => ({ ...doc, collectionIds: doc.collectionIds ?? (doc.collectionId ? [doc.collectionId] : []), backendId: doc.id, addedAt: typeof doc.addedAt === "number" ? doc.addedAt : Date.parse(doc.addedAt), url: documentFileUrl(doc.id) })));
+        const restoredDocuments = savedDocuments.map((doc) => ({ ...doc, collectionIds: doc.collectionIds ?? (doc.collectionId ? [doc.collectionId] : []), backendId: doc.id, addedAt: typeof doc.addedAt === "number" ? doc.addedAt : Date.parse(doc.addedAt), url: documentFileUrl(doc.id) }));
+        setDocuments(restoredDocuments);
+        restoredDocuments.filter((doc) => doc.status === "uploading").forEach((doc) => {
+          void waitForDocumentProcessing(doc.id, (status, error) => {
+            if (alive) setDocuments((current) => current.map((item) => item.id === doc.id
+              ? { ...item, status, error: error ?? null }
+              : item));
+          }).catch((error) => {
+            if (alive) setDocuments((current) => current.map((item) => item.id === doc.id
+              ? { ...item, status: "failed", error: String(error) }
+              : item));
+          });
+        });
         const chats = savedConversations;
         if (!alive) return;
         setConversations(chats);
@@ -154,13 +166,26 @@ export default function App() {
       setDocuments((current) => [...current, newDocument]);
       if (fromLibrary) {
         void uploadDocument(file)
-          .then(({ id: backendId, name, size }) => {
+          .then(async ({ id: backendId, name, size, status }) => {
             URL.revokeObjectURL(localUrl);
             setDocuments((current) => current.map((doc) => doc.id === id
-              ? { ...doc, id: backendId, backendId, name, size, url: documentFileUrl(backendId), status: "ready", pending: false }
+              ? { ...doc, id: backendId, backendId, name, size, url: documentFileUrl(backendId), status, pending: false }
               : doc));
+            try {
+              await waitForDocumentProcessing(backendId, (nextStatus, error) => {
+                setDocuments((current) => current.map((doc) => doc.id === backendId
+                  ? { ...doc, status: nextStatus, error: error ?? null }
+                  : doc));
+              });
+            } catch (error) {
+              setDocuments((current) => current.map((doc) => doc.id === backendId
+                ? { ...doc, status: "failed", error: String(error) }
+                : doc));
+            }
           })
-          .catch(() => setDocuments((current) => current.map((doc) => doc.id === id ? { ...doc, status: "failed" } : doc)));
+          .catch((error) => setDocuments((current) => current.map((doc) => doc.id === id
+            ? { ...doc, status: "failed", pending: false, error: String(error) }
+            : doc)));
       } else {
         pendingUploadsRef.current.set(id, file);
         setPinnedDocuments([...new Set([...selectedIdsRef.current, id])], false);
@@ -273,23 +298,57 @@ export default function App() {
     let content: string;
   
     try {
+      const conversationId = activeConversationId ?? createId();
+      const firstPrompt = history.find((message) => message.role === "user")?.content ?? "New conversation";
+      const draftDocumentIds = selectedIdsRef.current.filter((id) => !pendingUploadsRef.current.has(id));
+      if (!activeConversationId) {
+        activeConversationIdRef.current = conversationId;
+        setActiveConversationId(conversationId);
+        setConversations((current) => [{
+          id: conversationId,
+          title: firstPrompt.slice(0, 70) || "New conversation",
+          preview: firstPrompt,
+          updatedAt: new Date().toISOString(),
+          documentIds: draftDocumentIds,
+        }, ...current.filter((item) => item.id !== conversationId)]);
+      }
+      await api(`/api/conversations/${conversationId}/draft`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: history.map(({ id, role, content, liked, timestamp }) => ({ id, role, content, liked, timestamp })),
+          documentIds: draftDocumentIds,
+        }),
+      });
+
       const pendingIds = selectedIdsRef.current.filter((id) => pendingUploadsRef.current.has(id));
       const resolvedIds = new Map<string, string>();
       for (const pendingId of pendingIds) {
         const file = pendingUploadsRef.current.get(pendingId);
         if (!file) continue;
         const uploaded = await uploadDocument(file);
+        resolvedIds.set(pendingId, uploaded.id);
         const localDocument = documents.find((doc) => doc.id === pendingId);
         if (localDocument?.url) URL.revokeObjectURL(localDocument.url);
         pendingUploadsRef.current.delete(pendingId);
-        resolvedIds.set(pendingId, uploaded.id);
         setDocuments((current) => current.map((doc) => doc.id === pendingId
-          ? { ...doc, id: uploaded.id, backendId: uploaded.id, name: uploaded.name, size: uploaded.size, url: documentFileUrl(uploaded.id), pending: false, status: "ready" }
+          ? { ...doc, id: uploaded.id, backendId: uploaded.id, name: uploaded.name, size: uploaded.size, url: documentFileUrl(uploaded.id), pending: false, status: uploaded.status }
           : doc));
+        setPinnedDocuments(selectedIdsRef.current.map((id) => resolvedIds.get(id) ?? id), false);
+        try {
+          await waitForDocumentProcessing(uploaded.id, (status, error) => {
+            setDocuments((current) => current.map((doc) => doc.id === uploaded.id
+              ? { ...doc, status, error: error ?? null }
+              : doc));
+          });
+        } catch (error) {
+          setPinnedDocuments(selectedIdsRef.current.filter((id) => id !== uploaded.id), false);
+          throw error;
+        }
       }
       const documentIds = selectedIdsRef.current.map((id) => resolvedIds.get(id) ?? id);
       if (resolvedIds.size > 0) setPinnedDocuments(documentIds, false);
-      const result = await askModel(history, documentIds, activeConversationId, controller.signal);
+      const result = await askModel(history, documentIds, conversationId, controller.signal);
       content = result.content;
       activeConversationIdRef.current = result.conversationId;
       setActiveConversationId(result.conversationId);
@@ -352,6 +411,11 @@ export default function App() {
   
       return [...current, answer];
     });
+
+    const failedPreview = history.filter((message) => message.role === "user").at(-1)?.content ?? content;
+    setConversations((current) => current.map((item) => item.id === activeConversationIdRef.current
+      ? { ...item, preview: failedPreview, updatedAt: new Date().toISOString() }
+      : item));
   
     setIsGenerating(false);
     abortRef.current = null;

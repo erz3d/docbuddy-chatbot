@@ -1,12 +1,34 @@
 """SQLite database setup for DocBuddy's local data."""
 
 import sqlite3
+import os
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 DATABASE_PATH = BACKEND_DIR / "data" / "database.db"
+DOCUMENTS_DIR = BACKEND_DIR / "data" / "documents"
+
+
+def _migrate_document_files(connection: sqlite3.Connection) -> None:
+    """Move legacy PDF BLOBs to files, retaining an idempotent recovery path."""
+    DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
+    rows = connection.execute(
+        "SELECT id,content,file_path FROM documents WHERE content IS NOT NULL OR file_path IS NULL"
+    ).fetchall()
+    for row in rows:
+        document_path = DOCUMENTS_DIR / f"{row['id']}.pdf"
+        if row["content"] is not None and not document_path.exists():
+            temporary_path = document_path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+            temporary_path.write_bytes(row["content"])
+            os.replace(temporary_path, document_path)
+        if document_path.exists():
+            connection.execute(
+                "UPDATE documents SET file_path=?,content=NULL WHERE id=?",
+                (str(document_path), row["id"]),
+            )
 
 
 @contextmanager
@@ -49,8 +71,10 @@ def initialize_database() -> None:
                 mime_type TEXT NOT NULL DEFAULT 'application/pdf',
                 size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
                 content BLOB,
+                file_path TEXT,
                 status TEXT NOT NULL DEFAULT 'ready'
                     CHECK (status IN ('ready', 'uploading', 'failed')),
+                processing_error TEXT,
                 added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
             );
             CREATE TABLE IF NOT EXISTS document_pages (
@@ -127,3 +151,18 @@ def initialize_database() -> None:
             INSERT OR IGNORE INTO document_collections(document_id, collection_id)
             SELECT id, collection_id FROM documents WHERE collection_id IS NOT NULL
         """)
+        document_columns = {row["name"] for row in connection.execute("PRAGMA table_info(documents)")}
+        if "file_path" not in document_columns:
+            connection.execute("ALTER TABLE documents ADD COLUMN file_path TEXT")
+        if "processing_error" not in document_columns:
+            connection.execute("ALTER TABLE documents ADD COLUMN processing_error TEXT")
+        _migrate_document_files(connection)
+        for row in connection.execute("SELECT id,file_path FROM documents WHERE file_path IS NOT NULL"):
+            if not Path(row["file_path"]).is_file():
+                connection.execute(
+                    "UPDATE documents SET status='failed',processing_error='The stored PDF file is missing.' WHERE id=?",
+                    (row["id"],),
+                )
+        connection.execute(
+            "UPDATE documents SET status='failed',processing_error='The stored PDF file is missing.' WHERE file_path IS NULL AND content IS NULL"
+        )

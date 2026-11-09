@@ -97,7 +97,7 @@ export default function DocumentLibrary({
           {inCollection ? (
             <button onClick={() => { onViewDocument(doc); setOpenMenu(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><Eye size={14} />View</button>
           ) : null}
-          <button onClick={() => { onSelectForChat(doc.id); setOpenMenu(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><MessageSquarePlus size={14} />Use in chat</button>
+          <button disabled={doc.status !== "ready"} onClick={() => { onSelectForChat(doc.id); setOpenMenu(null); }} title={doc.status === "ready" ? "Use in chat" : "Available after processing completes"} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><MessageSquarePlus size={14} />Use in chat</button>
           {!inCollection && <button onClick={() => { onViewDocument(doc); setOpenMenu(null); }} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><Eye size={14} />View</button>}
           <div className="relative">
             <button onClick={() => setOpenCollectionPicker(openCollectionPicker === doc.id ? null : doc.id)} className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"><FolderPlus size={14} />Add to collection</button>
@@ -170,6 +170,7 @@ export default function DocumentLibrary({
                     <p className="truncate text-sm font-medium">{doc.name}</p>
                     <p className="app-muted mt-1 text-xs">{(doc.size / 1024 / 1024).toFixed(2)} MB · {doc.status === "ready" ? "Ready" : doc.status}</p>
                   </div>
+                  {doc.error && <p className="w-full pl-8 text-xs text-red-400" title={doc.error}>{doc.error}</p>}
                   {renderDocumentActions(doc, true)}
                 </div>
               ))}
@@ -395,6 +396,7 @@ export default function DocumentLibrary({
                     {(doc.size / 1024 / 1024).toFixed(2)} MB ·{" "}
                     {doc.status === "ready" ? "Ready" : doc.status}
                   </p>
+                  {doc.error && <p className="mt-1 text-xs text-red-400" title={doc.error}>{doc.error}</p>}
                 </div>
 
                 {renderDocumentActions(doc)}
