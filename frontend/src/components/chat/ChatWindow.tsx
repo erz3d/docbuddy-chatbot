@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bot,
   User,
@@ -9,8 +9,9 @@ import {
   Square,
   FileText,
   Sparkles,
-  Download,
-  PanelRight,
+  X,
+  Pencil,
+  PanelLeft,
 } from "lucide-react";
 import type {
   ChatMessage,
@@ -31,7 +32,9 @@ interface ChatWindowProps {
   onRegenerate: () => void;
   onFeedback: (id: string, liked: boolean) => void;
   onCitation: (citation: Citation) => void;
-  onViewDocument: () => void;
+  onViewDocument: (documentId: string) => void;
+  conversationTitle: string;
+  onRenameConversation: (title: string) => void;
 }
 
 const suggestions = [
@@ -54,8 +57,43 @@ export default function ChatWindow({
   onFeedback,
   onCitation,
   onViewDocument,
+  conversationTitle,
+  onRenameConversation,
 }: ChatWindowProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(conversationTitle);
+  const [showPinnedDocuments, setShowPinnedDocuments] = useState(false);
+  const [showViewDocumentMenu, setShowViewDocumentMenu] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const pinnedPanelRef = useRef<HTMLElement>(null);
+  const pinnedCountButtonRef = useRef<HTMLButtonElement>(null);
+  const viewDocumentMenuRef = useRef<HTMLDivElement>(null);
+  const pinnedDocuments = documents.filter((doc) => selectedIds.includes(doc.id));
+
+  useEffect(() => setTitleDraft(conversationTitle), [conversationTitle]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, isGenerating, selectedIds.length]);
+  useEffect(() => {
+    if (!showPinnedDocuments) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!pinnedPanelRef.current?.contains(target) && !pinnedCountButtonRef.current?.contains(target)) {
+        setShowPinnedDocuments(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [showPinnedDocuments]);
+  useEffect(() => {
+    if (!showViewDocumentMenu) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!viewDocumentMenuRef.current?.contains(event.target as Node)) setShowViewDocumentMenu(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [showViewDocumentMenu]);
 
   const copyMessage = async (message: ChatMessage) => {
     await navigator.clipboard.writeText(message.content);
@@ -63,56 +101,89 @@ export default function ChatWindow({
     setTimeout(() => setCopiedId(null), 1800);
   };
 
-  const exportConversation = () => {
-    const text = messages
-      .map((message) => {
-        const role = message.role === "user" ? "You" : "DocBuddy";
-        return `${role}:\n${message.content}`;
-      })
-      .join("\n\n");
-
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "docbuddy-conversation.txt";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <header className="flex h-[76px] items-center justify-between border-b border-[var(--border)] px-5 md:px-8">
-        <div>
-          <h1 className="text-sm font-semibold md:text-base">Document Chat</h1>
-          <p className="app-muted mt-1 text-xs">
-            {documents.length} documents in your library
-          </p>
+        <div className="min-w-0">
+          {editingTitle ? (
+            <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); const title = titleDraft.trim(); if (title) onRenameConversation(title); setEditingTitle(false); }}>
+              <input autoFocus maxLength={120} value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} className="app-input min-w-0 max-w-sm rounded-lg px-2 py-1 text-sm font-semibold" aria-label="Discussion title" />
+              <button className="accent-text text-xs font-semibold">Save</button>
+              <button type="button" onClick={() => { setTitleDraft(conversationTitle); setEditingTitle(false); }} className="app-muted text-xs">Cancel</button>
+            </form>
+          ) : (
+            <button onClick={() => setEditingTitle(true)} className="group flex max-w-full items-center gap-2 text-left" title="Rename discussion">
+              <h1 className="truncate text-sm font-semibold md:text-base">{conversationTitle}</h1>
+              <Pencil size={13} className="app-muted shrink-0 opacity-60 group-hover:opacity-100" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
-          {messages.length > 0 && (
-            <button
-              onClick={exportConversation}
-              title="Export conversation as TXT"
-              className="app-muted app-surface-hover rounded-lg p-2"
-            >
-              <Download size={18} />
-            </button>
-          )}
-
           <button
-            onClick={onViewDocument}
-            className="app-muted app-surface-hover flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+            ref={pinnedCountButtonRef}
+            onClick={() => setShowPinnedDocuments((open) => !open)}
+            disabled={pinnedDocuments.length === 0}
+            title={`${pinnedDocuments.length} ${pinnedDocuments.length === 1 ? "document" : "documents"} in this conversation`}
+            aria-label={`${pinnedDocuments.length} documents in this conversation`}
+            aria-expanded={showPinnedDocuments}
+            className="app-muted app-surface-hover rounded-lg p-2 transition-colors duration-200 hover:text-[var(--accent)]"
           >
-            <PanelRight size={17} />
-            <span className="hidden sm:inline">View document</span>
+            <FileText size={18} />
           </button>
+          <div className="relative" ref={viewDocumentMenuRef}>
+            <button
+              onClick={() => setShowViewDocumentMenu((open) => !open)}
+              disabled={pinnedDocuments.length === 0}
+              title="View document"
+              aria-label="View document"
+              aria-expanded={showViewDocumentMenu}
+              className="app-muted app-surface-hover rounded-lg p-2 transition-colors duration-200 hover:text-[var(--accent)]"
+            >
+              <span className="flex items-center gap-2 px-1 text-sm">
+                <PanelLeft size={18} />
+                View document
+              </span>
+            </button>
+            {showViewDocumentMenu && pinnedDocuments.length > 0 && (
+              <div className="app-surface absolute right-0 top-full z-40 mt-2 max-h-64 w-64 overflow-y-auto rounded-xl border p-1.5 shadow-xl">
+                {pinnedDocuments.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => { onViewDocument(doc.id); setShowViewDocumentMenu(false); }}
+                    className="app-surface-hover flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs"
+                    title={doc.name}
+                  >
+                    <FileText size={14} className="shrink-0 text-red-400" />
+                    <span className="truncate">{doc.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-8 md:px-8">
         <div className="mx-auto max-w-4xl">
+          {showPinnedDocuments && pinnedDocuments.length > 0 && (
+            <section ref={pinnedPanelRef} className="sticky top-0 z-20 mb-6 rounded-xl border border-teal-500/20 bg-[var(--background)] p-3 shadow-md">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-teal-500">Pinned for this chat</p>
+              <div className="flex flex-wrap gap-2">
+                {pinnedDocuments.map((document) => {
+                  return (
+                    <div key={document.id} className="app-surface flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs">
+                      <FileText size={14} className="shrink-0 text-red-400" />
+                      <button onClick={() => onViewDocument(document.id)} className="max-w-64 truncate text-left font-medium hover:text-[var(--accent)]" title={`View ${document.name}`}>{document.name}</button>
+                      <button onClick={() => onToggleDocument(document.id)} title={`Unpin ${document.name}`} aria-label={`Unpin ${document.name}`} className="app-muted rounded p-0.5 hover:bg-[var(--surface-hover)]">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
           {messages.length === 0 ? (
             <div className="flex min-h-[55vh] flex-col items-center justify-center text-center">
               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-500/10">
@@ -270,6 +341,7 @@ export default function ChatWindow({
               )}
             </div>
           )}
+          <div ref={bottomRef} />
         </div>
       </div>
 
@@ -283,7 +355,7 @@ export default function ChatWindow({
           disabled={isGenerating}
         />
         <p className="app-muted mt-3 text-center text-[10px]">
-          DocBuddy uses simulated responses in this frontend prototype.
+          Answers are generated from your selected PDFs and chat history.
         </p>
       </div>
     </div>

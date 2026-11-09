@@ -1,19 +1,21 @@
 from openai import AsyncOpenAI
 
-from src.api.documents import DOCUMENTS
 from src.config import API_KEY, MODEL, SYSTEM_PROMPT
+from src.database import get_connection
 
 client = AsyncOpenAI(api_key=API_KEY)
 
 
 def build_context(document_ids: list[str]) -> str:
     parts = []
-    for doc_id in document_ids:
-        doc = DOCUMENTS.get(doc_id)
-        if not doc:
-            continue
-        for number, text in enumerate(doc["pages"], start=1):
-            parts.append(f"[{doc['name']} | page {number}]\n{text}")
+    with get_connection() as db:
+        for doc_id in document_ids:
+            doc = db.execute("SELECT name FROM documents WHERE id=?", (doc_id,)).fetchone()
+            if not doc:
+                continue
+            pages = db.execute("SELECT page_number,text FROM document_pages WHERE document_id=? ORDER BY page_number", (doc_id,)).fetchall()
+            for page in pages:
+                parts.append(f"[{doc['name']} | page {page['page_number']}]\n{page['text']}")
     return "\n\n".join(parts)
 
 

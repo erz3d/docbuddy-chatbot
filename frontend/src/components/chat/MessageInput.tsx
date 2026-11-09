@@ -3,8 +3,8 @@ import {
   Paperclip,
   Send,
   FileText,
-  X,
   ChevronDown,
+  Check,
 } from "lucide-react";
 import type { DocumentItem } from "../../types";
 
@@ -38,31 +38,6 @@ export default function MessageInput({
 
   return (
     <div className="app-surface mx-auto w-full max-w-4xl rounded-2xl border p-3 shadow-lg shadow-black/5">
-      {selectedIds.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {selectedIds.map((id) => {
-            const document = documents.find((doc) => doc.id === id);
-            if (!document) return null;
-
-            return (
-              <span
-                key={id}
-                className="flex items-center gap-2 rounded-lg bg-teal-500/10 px-2.5 py-1.5 text-xs text-teal-500"
-              >
-                <FileText size={13} />
-                <span className="max-w-40 truncate">{document.name}</span>
-                <button
-                  onClick={() => onToggleDocument(id)}
-                  aria-label={`Remove ${document.name}`}
-                >
-                  <X size={13} />
-                </button>
-              </span>
-            );
-          })}
-        </div>
-      )}
-
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
@@ -117,18 +92,20 @@ export default function MessageInput({
                   </p>
                 ) : (
                   documents.map((doc) => (
-                    <label
+                    <button
                       key={doc.id}
-                      className="app-surface-hover flex cursor-pointer items-center gap-2 rounded-lg p-2 text-xs"
+                      type="button"
+                      onClick={() => {
+                        onToggleDocument(doc.id);
+                        setShowDocuments(false);
+                      }}
+                      className="app-surface-hover flex w-full items-center gap-2 rounded-lg p-2 text-left text-xs"
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(doc.id)}
-                        onChange={() => onToggleDocument(doc.id)}
-                        className="accent-teal-500"
-                      />
+                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selectedIds.includes(doc.id) ? "border-teal-500 bg-teal-500 text-white" : "border-[var(--border)]"}`}>
+                        {selectedIds.includes(doc.id) && <Check size={11} />}
+                      </span>
                       <span className="truncate">{doc.name}</span>
-                    </label>
+                    </button>
                   ))
                 )}
               </div>

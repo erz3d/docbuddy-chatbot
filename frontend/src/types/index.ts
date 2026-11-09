@@ -1,14 +1,16 @@
 export type Theme = "dark" | "light";
 
-export type Page = "chat" | "documents" | "settings";
+export type Page = "chat" | "documents" | "settings" | "archive" | "history";
 
 export interface DocumentItem {
   id: string;
   backendId?: string;
+  pending?: boolean;
   name: string;
   size: number;
   status: "ready" | "uploading" | "failed";
   collectionId: string | null;
+  collectionIds?: string[];
   url?: string;
   addedAt: number;
 }
@@ -34,4 +36,12 @@ export interface ChatMessage {
   citations?: Citation[];
   liked?: boolean | null;
   timestamp: number;
+}
+
+export interface ConversationItem {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAt: string;
+  documentIds: string[];
 }

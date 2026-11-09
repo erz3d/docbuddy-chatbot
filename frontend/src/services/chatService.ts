@@ -1,33 +1,18 @@
 
 import type { ChatMessage } from "../types";
+import { api } from "./api";
 
-const API_URL =
-  import.meta.env.VITE_API_URL ?? "http://127.0.0.1:3001";
-
-export async function askModel( messages: ChatMessage[], documentIds: string[], signal?: AbortSignal): Promise<string> {
-  const response = await fetch(`${API_URL}/api/chat`, {
+export async function askModel(messages: ChatMessage[], documentIds: string[], conversationId: string | null, signal?: AbortSignal): Promise<{ content: string; id: string; timestamp: string; conversationId: string }> {
+  return api("/api/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      messages: messages.map(({ role, content }) => ({role, content,})),
+      messages: messages.map(({ id, role, content, liked, timestamp }) => ({ id, role, content, liked, timestamp })),
       documentIds,
+      conversationId,
     }),
     signal,
   });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-
-    throw new Error(
-      data.detail ??
-      data.error ??
-      `Server error (${response.status})`
-    );
-  }
-
-  const data: { content: string } = await response.json();
-
-  return data.content;
 }

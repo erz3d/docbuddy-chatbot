@@ -1,14 +1,6 @@
-import { useEffect, useState } from "react";
-import {
-  X,
-  ZoomIn,
-  ZoomOut,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  FileText,
-} from "lucide-react";
+import { X, FileText } from "lucide-react";
 import type { DocumentItem } from "../../types";
+import { documentFileUrl } from "../../services/api";
 
 interface PDFViewerProps {
   document: DocumentItem | null;
@@ -18,30 +10,9 @@ interface PDFViewerProps {
 
 export default function PDFViewer({
   document,
-  initialPage,
   onClose,
 }: PDFViewerProps) {
-  const [page, setPage] = useState(initialPage);
-  const [zoom, setZoom] = useState(100);
-
-  useEffect(() => {
-    setPage(initialPage);
-  }, [initialPage, document?.id]);
-
-  useEffect(() => {
-    setZoom(100);
-  }, [document?.id]);
-
   if (!document) return null;
-
-  const downloadDocument = () => {
-    if (!document.url) return;
-
-    const link = window.document.createElement("a");
-    link.href = document.url;
-    link.download = document.name;
-    link.click();
-  };
 
   return (
     <div className="app-background flex h-full min-w-0 flex-1 flex-col border-l border-[var(--border)]">
@@ -62,66 +33,11 @@ export default function PDFViewer({
         </button>
       </header>
 
-      <div className="app-surface flex shrink-0 items-center justify-between border-b px-3 py-2">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setPage(Math.max(1, page - 1))}
-            className="app-muted rounded-lg p-2 hover:bg-[var(--surface-hover)]"
-            title="Previous page"
-          >
-            <ChevronLeft size={17} />
-          </button>
-
-          <span className="app-muted px-2 text-xs">
-            Page {page}
-          </span>
-
-          <button
-            onClick={() => setPage(page + 1)}
-            className="app-muted rounded-lg p-2 hover:bg-[var(--surface-hover)]"
-            title="Next page"
-          >
-            <ChevronRight size={17} />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setZoom(Math.max(50, zoom - 10))}
-            className="app-muted rounded-lg p-2 hover:bg-[var(--surface-hover)]"
-            title="Zoom out"
-          >
-            <ZoomOut size={16} />
-          </button>
-
-          <span className="app-muted min-w-10 text-center text-xs">
-            {zoom}%
-          </span>
-
-          <button
-            onClick={() => setZoom(Math.min(150, zoom + 10))}
-            className="app-muted rounded-lg p-2 hover:bg-[var(--surface-hover)]"
-            title="Zoom in"
-          >
-            <ZoomIn size={16} />
-          </button>
-
-          <button
-            onClick={downloadDocument}
-            disabled={!document.url}
-            className="app-muted ml-2 rounded-lg p-2 hover:bg-[var(--surface-hover)]"
-            title="Download PDF"
-          >
-            <Download size={16} />
-          </button>
-        </div>
-      </div>
-
       <div className="flex-1 overflow-auto bg-black/5 p-4">
-        {document.url ? (
+        {document.id ? (
           <iframe
-            key={`${document.id}-${page}`}
-            src={`${document.url}#page=${page}&zoom=${zoom}`}
+            key={document.id}
+            src={document.url ?? documentFileUrl(document.id)}
             title={document.name}
             className="h-full min-h-[500px] w-full rounded-lg bg-white"
           />
@@ -133,8 +49,7 @@ export default function PDFViewer({
                 PDF preview unavailable
               </h3>
               <p className="app-muted mt-2 text-xs leading-5">
-                This sample document has no local PDF preview. Upload a real
-                PDF to view it here.
+                The PDF preview could not be loaded.
               </p>
             </div>
           </div>
