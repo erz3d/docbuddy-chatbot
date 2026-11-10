@@ -15,7 +15,7 @@ import {
     Check,
 } from "lucide-react";
 import type { Collection, ConversationItem, Page } from "../../types";
-import type  { ReactNode } from "react";
+import type { ReactNode } from "react";
   interface SidebarProps {
     page: Page;
     onNavigate: (page: Page) => void;

@@ -1,7 +1,7 @@
 """SQLite database setup for DocBuddy's local data."""
 
-import sqlite3
 import os
+import sqlite3
 import uuid
 from contextlib import contextmanager
 from pathlib import Path

@@ -2,10 +2,10 @@
 import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.collections import router as collections_router
-from src.api.documents import router as documents_router
 from src.api.chat import router as chat_router
+from src.api.collections import router as collections_router
 from src.api.conversations import router as conversations_router
+from src.api.documents import router as documents_router
 from src.api.settings import router as settings_router
 from src.database import get_connection, initialize_database
 from src.services.document_processing import process_document

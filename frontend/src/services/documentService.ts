@@ -10,9 +10,16 @@ export interface UploadedDocument {
   error?: string | null;
 }
 
-export async function uploadDocument(
-  file: File
-): Promise<UploadedDocument> {
+interface DocumentProcessingStatus {
+  status: UploadedDocument["status"];
+  stage: DocumentProcessingStage;
+  error?: string | null;
+}
+
+const delay = (milliseconds: number) =>
+  new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+
+export async function uploadDocument(file: File): Promise<UploadedDocument> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -24,17 +31,15 @@ export async function uploadDocument(
 
 export async function waitForDocumentProcessing(
   documentId: string,
-  onStatus?: (status: "ready" | "uploading" | "failed", stage: DocumentProcessingStage, error?: string | null) => void,
+  onStatus?: (status: DocumentProcessingStatus["status"], stage: DocumentProcessingStage, error?: string | null) => void,
 ): Promise<void> {
   for (let attempt = 0; attempt < 600; attempt += 1) {
-    let result: { status: "ready" | "uploading" | "failed"; stage: DocumentProcessingStage; error?: string | null };
+    let result: DocumentProcessingStatus;
     try {
-      result = await api<{ status: "ready" | "uploading" | "failed"; stage: DocumentProcessingStage; error?: string | null }>(
-        `/api/documents/${documentId}/status`,
-      );
+      result = await api<DocumentProcessingStatus>(`/api/documents/${documentId}/status`);
     } catch (error) {
       if (attempt === 599) throw error;
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
+      await delay(500);
       continue;
     }
     onStatus?.(result.status, result.stage, result.error);
@@ -42,7 +47,7 @@ export async function waitForDocumentProcessing(
     if (result.status === "failed") {
       throw new Error(result.error || "Document processing failed.");
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    await delay(500);
   }
   throw new Error("Document processing is taking too long. Check its status in the document library.");
 }
