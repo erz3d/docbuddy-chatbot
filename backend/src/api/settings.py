@@ -1,3 +1,5 @@
+# Read and update persisted application settings.
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -9,6 +11,7 @@ DEFAULTS = {"theme": "dark", "appName": "DocBuddy"}
 
 @router.get("/api/settings")
 def get_settings():
+    # Return saved settings combined with their application defaults.
     with get_connection() as db:
         values = {row["key"]: row["value"] for row in db.execute("SELECT key,value FROM app_settings")}
     return {**DEFAULTS, **values}
@@ -20,6 +23,7 @@ class SettingInput(BaseModel):
 
 @router.put("/api/settings/{key}")
 def set_setting(key: str, payload: SettingInput):
+    # Save a supported application setting.
     if key not in DEFAULTS:
         return {"ok": False}
     with get_connection() as db:

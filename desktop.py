@@ -1,4 +1,6 @@
 
+# Launch the local API and web frontend inside the DocBuddy desktop window.
+
 import os
 import subprocess
 import sys
@@ -17,6 +19,7 @@ FRONTEND_URL = "http://127.0.0.1:5173"
 
 
 def wait_for_server(url, process, timeout=30):
+    # Wait until a server responds or its process exits or times out.
     deadline = time.monotonic() + timeout
 
     while time.monotonic() < deadline:
@@ -40,6 +43,7 @@ def wait_for_server(url, process, timeout=30):
 
 
 def stop_process(process):
+    # Stop a child server process and its descendants.
     if process is None or process.poll() is not None:
         return
 
@@ -65,6 +69,7 @@ def stop_process(process):
 
 
 def main():
+    # Start both app servers, open the desktop window, and clean up on exit.
     backend = None
     frontend = None
 

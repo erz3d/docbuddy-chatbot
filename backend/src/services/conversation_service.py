@@ -1,4 +1,4 @@
-"""Shared persistence operations for conversation histories."""
+# Persist conversation drafts and assistant replies for the chat API.
 
 import uuid
 from datetime import datetime, timezone
@@ -26,6 +26,7 @@ def persist_conversation_history(
     *,
     require_documents: bool = True,
 ) -> None:
+    # Replace a conversation's messages and synchronize its document links.
     now = datetime.now(timezone.utc).isoformat()
     first_user = next((message.content for message in messages if message.role == "user"), "New conversation")
     unique_document_ids = list(dict.fromkeys(document_ids))
@@ -71,6 +72,7 @@ def persist_conversation_history(
 
 
 def persist_assistant_message(conversation_id: str, message_id: str, content: str) -> str:
+    # Store an assistant reply and update the conversation's activity time.
     now = datetime.now(timezone.utc).isoformat()
     with get_connection() as db:
         db.execute(

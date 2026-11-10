@@ -1,3 +1,5 @@
+// Display library documents, collections, and collection-related conversations.
+
 import { useEffect, useRef, useState } from "react";
 import {
   Upload,
@@ -41,12 +43,15 @@ const collectionColors = [
 ];
 
 function documentStatusLabel(document: DocumentItem) {
+  // Convert backend processing states into labels for the library UI.
   if (document.status === "failed" || document.stage === "failed") return "Failed";
   if (document.stage === "uploading") return "Uploading";
   if (document.stage === "extracting") return "Extracting text";
+  if (document.stage === "ready_for_indexing" || document.stage === "indexing") return "Indexing";
   return "Ready";
 }
 
+// Render collection management and document browsing actions.
 export default function DocumentLibrary({
   documents,
   collections,
@@ -76,6 +81,7 @@ export default function DocumentLibrary({
 
   useEffect(() => {
     if (!openMenu) return;
+    // Close open menus when a click occurs outside the document list.
     const closeOnOutsideClick = (event: MouseEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) {
         setOpenMenu(null);
@@ -86,6 +92,7 @@ export default function DocumentLibrary({
     return () => document.removeEventListener("mousedown", closeOnOutsideClick);
   }, [openMenu]);
 
+  // Render the menu actions available for the current document.
   const renderDocumentActions = (doc: DocumentItem, inCollection = false) => (
     <div className="relative" ref={openMenu === doc.id ? menuRef : undefined}>
       <button
@@ -134,6 +141,7 @@ export default function DocumentLibrary({
           : doc.collectionIds?.includes(filter) || doc.collectionId === filter
     )    .sort((a, b) => b.addedAt - a.addedAt);
 
+  // Create the collection from the current name and selected color.
   const handleCreate = () => {
     if (!collectionName.trim()) return;
     onCreateCollection(collectionName.trim(), collectionColor);

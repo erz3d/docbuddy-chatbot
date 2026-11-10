@@ -1,7 +1,15 @@
+// Share the app's core data shapes across views, hooks, and API services.
+
 export type Theme = "dark" | "light";
 
 export type Page = "chat" | "documents" | "settings" | "archive" | "history";
-export type DocumentProcessingStage = "uploading" | "extracting" | "ready_for_indexing" | "failed";
+export type DocumentProcessingStage =
+  | "uploading"
+  | "extracting"
+  | "ready_for_indexing"
+  | "indexing"
+  | "indexed"
+  | "failed";
 
 export interface DocumentItem {
   id: string;

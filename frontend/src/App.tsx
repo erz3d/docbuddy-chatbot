@@ -1,3 +1,5 @@
+// Coordinate app state, navigation, document actions, and chat conversations.
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import { askModel } from "./services/chatService";
@@ -24,9 +26,11 @@ import type {
 } from "./types";
 
 function createId() {
+  // Create unique client-side IDs for drafts and messages.
   return crypto.randomUUID();
 }
 
+// Render the application shell and connect views to workspace actions.
 export default function App() {
   const [page, setPage] = useState<Page>("chat");
   const [theme, setTheme] = useState<Theme>("dark");
@@ -56,6 +60,7 @@ export default function App() {
 
   const abortRef = useRef<AbortController | null>(null);
   const pendingUploadsRef = useRef<Map<string, File>>(new Map());
+  // Update pinned-document state and optionally persist it for the conversation.
   const setPinnedDocuments = useCallback((ids: string[], persist = true) => {
     selectedIdsRef.current = ids;
     setSelectedIds(ids);
@@ -104,6 +109,7 @@ export default function App() {
     };
   }, []);
 
+  // Toggle a document in the current chat's pinned selection.
   const toggleDocument = (id: string) => {
     const current = selectedIdsRef.current;
     const nextIds = current.includes(id)
@@ -112,6 +118,7 @@ export default function App() {
     setPinnedDocuments(nextIds);
   };
 
+  // Confirm deletion, remove a document, and clear related selection state.
   const deleteDocument = (id: string) => {
     const doc = documents.find((item) => item.id === id);
     if (!doc) return;
@@ -128,12 +135,14 @@ export default function App() {
     }
   };
 
+  // Create a collection and add it to the visible workspace.
   const createCollection = (name: string, color: string) => {
     void api<Collection>("/api/collections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, color }) })
       .then((collection) => setCollections((current) => [...current, collection]))
       .catch((error) => window.alert(String(error)));
   };
 
+  // Toggle and persist a collection's favorite state.
   const toggleFavorite = (id: string) => {
     const collection = collections.find((item) => item.id === id);
     if (collection) void api(`/api/collections/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ favorite: !collection.favorite }) }).catch((error) => window.alert(String(error)));
@@ -146,6 +155,7 @@ export default function App() {
     );
   };
 
+  // Add a document to a collection and update local membership state.
   const addDocumentToCollection = (documentId: string, collectionId: string) => {
     void api(`/api/documents/${documentId}/collections/${collectionId}`, { method: "POST" }).catch((error) => window.alert(String(error)));
     setDocuments((current) => current.map((doc) => doc.id !== documentId ? doc : {
@@ -155,6 +165,7 @@ export default function App() {
     }));
   };
 
+  // Remove a document from a collection and refresh its primary membership.
   const removeDocumentFromCollection = (documentId: string, collectionId: string) => {
     void api(`/api/documents/${documentId}/collections/${collectionId}`, { method: "DELETE" }).catch((error) => window.alert(String(error)));
     setDocuments((current) => current.map((doc) => {
@@ -164,18 +175,21 @@ export default function App() {
     }));
   };
 
+  // Open a PDF at a page and remember which layout launched the viewer.
   const openDocument = (doc: DocumentItem, page = 1, source: "chat" | "library" = "library") => {
     setViewerDocument(doc);
     setViewerPage(page);
     setViewerSource(source);
   };
 
+  // Abort the current model request and clear its generating state.
   const stopGeneration = () => {
     abortRef.current?.abort();
     abortRef.current = null;
     setIsGenerating(false);
   };
   
+  // Persist the draft, upload selected files, and request an assistant reply.
   const generateAnswer = async (
     prompt: string,
     addUserMessage = true,
@@ -314,10 +328,12 @@ export default function App() {
     abortRef.current = null;
   };
 
+  // Start a new assistant response for the submitted user message.
   const sendMessage = (message: string) => {
     generateAnswer(message);
   };
 
+  // Retry the latest user prompt while replacing the prior assistant reply.
   const regenerateAnswer = () => {
     const lastUserMessage = [...messages]
       .reverse()
@@ -328,6 +344,7 @@ export default function App() {
     }
   };
 
+  // Toggle message feedback and persist the updated value.
   const updateFeedback = (id: string, liked: boolean) => {
     const target = messages.find((message) => message.id === id);
     const nextLiked = target?.liked === liked ? null : liked;
@@ -344,6 +361,7 @@ export default function App() {
     );
   };
 
+  // Open the cited document at the page referenced by the answer.
   const openCitation = (citation: Citation) => {
     const doc = documents.find(
       (document) => document.id === citation.documentId
@@ -352,6 +370,7 @@ export default function App() {
     if (doc) openDocument(doc, citation.page);
   };
 
+  // Reset chat state and start a fresh conversation draft.
   const newConversation = () => {
     stopGeneration();
     discardPendingUploads();
@@ -363,6 +382,7 @@ export default function App() {
     setMessages([]);
   };
 
+  // Load a saved conversation and restore its messages and pinned documents.
   const selectConversation = async (id: string) => {
     stopGeneration();
     try {
@@ -377,6 +397,7 @@ export default function App() {
     } catch (error) { window.alert(String(error)); }
   };
 
+  // Clear messages from the active conversation while keeping it available.
   const clearHistory = () => {
     stopGeneration();
     setMessages([]);
@@ -386,6 +407,7 @@ export default function App() {
       .catch((error) => window.alert(String(error)));
   };
 
+  // Save a conversation title and update the sidebar state.
   const renameConversation = (id: string, title: string) => {
     void api<{ id: string; title: string }>(`/api/conversations/${id}`, {
       method: "PATCH",
@@ -395,6 +417,7 @@ export default function App() {
       .catch((error) => window.alert(String(error)));
   };
 
+  // Archive a conversation and leave it out of the active history list.
   const archiveConversation = async (id: string) => {
     try {
       await api(`/api/conversations/${id}/archive`, {
@@ -409,6 +432,7 @@ export default function App() {
     } catch (error) { window.alert(String(error)); }
   };
 
+  // Confirm and permanently delete a conversation from both history lists.
   const deleteConversation = async (id: string) => {
     if (!window.confirm("Permanently delete this discussion and its messages?")) return;
     try {
@@ -419,6 +443,7 @@ export default function App() {
     } catch (error) { window.alert(String(error)); }
   };
 
+  // Restore an archived conversation to the active history list.
   const restoreConversation = async (id: string) => {
     try {
       await api(`/api/conversations/${id}/archive`, {

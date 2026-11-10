@@ -1,3 +1,5 @@
+// List archived conversations and expose restore and delete actions.
+
 import { Archive, MessageSquare, RotateCcw, Trash2 } from "lucide-react";
 import type { ConversationItem } from "../../types";
 
@@ -7,6 +9,7 @@ interface ArchiveViewProps {
   onDelete: (id: string) => void;
 }
 
+// Render the archived conversation list.
 export default function ArchiveView({ conversations, onRestore, onDelete }: ArchiveViewProps) {
   return (
     <div className="flex-1 overflow-y-auto p-5 md:p-8">

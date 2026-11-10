@@ -1,3 +1,5 @@
+// List active saved conversations and let the user reopen one.
+
 import { Clock3, MessageSquare } from "lucide-react";
 import type { ConversationItem } from "../../types";
 
@@ -6,6 +8,7 @@ interface ChatHistoryViewProps {
   onOpen: (id: string) => void;
 }
 
+// Render recent conversations with their title and preview.
 export default function ChatHistoryView({ conversations, onOpen }: ChatHistoryViewProps) {
   return (
     <div className="flex-1 overflow-y-auto p-5 md:p-8">

@@ -1,3 +1,5 @@
+# Handle document uploads, processing status, file delivery, and collections.
+
 import uuid
 from pathlib import Path
 
@@ -18,6 +20,7 @@ class DocumentUpdate(BaseModel):
 
 @router.get("/api/documents")
 def list_documents():
+    # Return library documents with collection membership and processing state.
     with get_connection() as db:
         rows = db.execute("SELECT id,name,size_bytes,collection_id,status,processing_stage,processing_error,added_at FROM documents ORDER BY added_at DESC").fetchall()
         memberships = db.execute("SELECT document_id, collection_id FROM document_collections").fetchall()
@@ -32,6 +35,7 @@ def list_documents():
 
 @router.post("/api/documents")
 async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    # Save an uploaded PDF and queue its text extraction.
     if file.content_type != "application/pdf" and not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(415, "Unsupported file type. Upload a PDF document.")
     doc_id = str(uuid.uuid4())
@@ -55,6 +59,7 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
 
 @router.get("/api/documents/{document_id}/file")
 def get_document_file(document_id: str):
+    # Stream the stored PDF for the requested library document.
     with get_connection() as db:
         row = db.execute("SELECT name,file_path FROM documents WHERE id=?", (document_id,)).fetchone()
     if not row:
@@ -67,6 +72,7 @@ def get_document_file(document_id: str):
 
 @router.get("/api/documents/{document_id}/status")
 def get_document_status(document_id: str):
+    # Return the current extraction status and any user-facing error.
     with get_connection() as db:
         row = db.execute("SELECT status,processing_stage,processing_error FROM documents WHERE id=?", (document_id,)).fetchone()
     if not row:
@@ -76,6 +82,7 @@ def get_document_status(document_id: str):
 
 @router.patch("/api/documents/{document_id}")
 def update_document(document_id: str, payload: DocumentUpdate):
+    # Set the document's primary collection membership.
     with get_connection() as db:
         if payload.collectionId and not db.execute("SELECT 1 FROM collections WHERE id=?", (payload.collectionId,)).fetchone():
             raise HTTPException(404, "Collection not found")
@@ -92,6 +99,7 @@ def update_document(document_id: str, payload: DocumentUpdate):
 
 @router.post("/api/documents/{document_id}/collections/{collection_id}")
 def add_document_to_collection(document_id: str, collection_id: str):
+    # Add a document to a collection without duplicating membership.
     with get_connection() as db:
         if not db.execute("SELECT 1 FROM collections WHERE id=?", (collection_id,)).fetchone():
             raise HTTPException(404, "Collection not found")
@@ -106,6 +114,7 @@ def add_document_to_collection(document_id: str, collection_id: str):
 
 @router.delete("/api/documents/{document_id}/collections/{collection_id}")
 def remove_document_from_collection(document_id: str, collection_id: str):
+    # Remove a collection membership and update the document's primary group.
     with get_connection() as db:
         db.execute("DELETE FROM document_collections WHERE document_id=? AND collection_id=?",
                    (document_id, collection_id))
@@ -118,6 +127,7 @@ def remove_document_from_collection(document_id: str, collection_id: str):
 
 @router.delete("/api/documents/{document_id}")
 def delete_document(document_id: str):
+    # Delete a document record and remove its stored PDF file.
     with get_connection() as db:
         row = db.execute("SELECT file_path FROM documents WHERE id=?", (document_id,)).fetchone()
         if not row:

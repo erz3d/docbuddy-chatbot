@@ -1,3 +1,5 @@
+# Expose API handlers for creating, listing, and favoriting collections.
+
 import uuid
 
 from fastapi import APIRouter, HTTPException
@@ -19,6 +21,7 @@ class CollectionUpdate(BaseModel):
 
 @router.get("/api/collections")
 def list_collections():
+    # Return collections with their display fields and favorite state.
     with get_connection() as db:
         rows = db.execute("SELECT * FROM collections ORDER BY created_at, name").fetchall()
     return [{"id": row["id"], "name": row["name"], "color": row["color"],
@@ -27,6 +30,7 @@ def list_collections():
 
 @router.post("/api/collections")
 def create_collection(payload: CollectionInput):
+    # Validate and save a new document collection.
     name = payload.name.strip()
     if not name:
         raise HTTPException(400, "Collection name is required")
@@ -40,6 +44,7 @@ def create_collection(payload: CollectionInput):
 
 @router.patch("/api/collections/{collection_id}")
 def update_collection(collection_id: str, payload: CollectionUpdate):
+    # Update a collection's favorite state.
     if payload.favorite is None:
         raise HTTPException(400, "No collection changes provided")
     with get_connection() as db:

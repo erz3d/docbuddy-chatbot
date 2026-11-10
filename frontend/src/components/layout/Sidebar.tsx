@@ -1,3 +1,5 @@
+// Render primary navigation, collections, and recent conversation controls.
+
 import { useEffect, useRef, useState } from "react";
 import {
     Files,
@@ -15,7 +17,7 @@ import {
     Check,
 } from "lucide-react";
 import type { Collection, ConversationItem, Page } from "../../types";
-import type  { ReactNode } from "react";
+import type { ReactNode } from "react";
   interface SidebarProps {
     page: Page;
     onNavigate: (page: Page) => void;
@@ -33,6 +35,7 @@ import type  { ReactNode } from "react";
     archivedCount: number;
   }
   
+  // Provide navigation and conversation actions from the app sidebar.
   export default function Sidebar({
     page,
     onNavigate,
@@ -56,12 +59,14 @@ import type  { ReactNode } from "react";
     const menuPanelRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
       if (!menuConversationId) return;
+      // Dismiss the open conversation menu when clicking elsewhere.
       const closeOnOutsideClick = (event: MouseEvent) => {
         if (!menuPanelRef.current?.contains(event.target as Node)) setMenuConversationId(null);
       };
       document.addEventListener("mousedown", closeOnOutsideClick);
       return () => document.removeEventListener("mousedown", closeOnOutsideClick);
     }, [menuConversationId]);
+    // Change the active page and close the mobile navigation drawer.
     const navigate = (nextPage: Page) => {
       onNavigate(nextPage);
       onMobileClose();
@@ -208,6 +213,7 @@ import type  { ReactNode } from "react";
     );
   }
   
+  // Render one page-navigation button with its active state.
   function NavButton({
     active,
     icon,
