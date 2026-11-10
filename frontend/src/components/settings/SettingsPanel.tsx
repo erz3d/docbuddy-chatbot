@@ -1,3 +1,5 @@
+// Provide controls for app appearance, app name, and clearing chat history.
+
 import { useState } from "react";
 import { Moon, Sun, Trash2, Pencil, Check, X } from "lucide-react";
 import type { Theme } from "../../types";
@@ -10,6 +12,7 @@ interface SettingsPanelProps {
   onClearHistory: () => void;
 }
 
+// Render editable application preferences and the history reset action.
 export default function SettingsPanel({
   theme,
   onThemeChange,

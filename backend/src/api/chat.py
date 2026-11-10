@@ -1,14 +1,16 @@
 
+# Validate chat requests, persist submitted history, and return model replies.
+
 import logging
 import uuid
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from openai import APIError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from src.services.openai_service import generate_response
 from src.services.conversation_service import persist_assistant_message, persist_conversation_history
+from src.services.openai_service import generate_response
 
 router = APIRouter()
 
@@ -29,12 +31,13 @@ class ChatResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[IncomingMessage]
-    documentIds: list[str] = []
+    documentIds: list[str] = Field(default_factory=list)
     conversationId: str | None = None
 
 
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
+    # Save the conversation, generate an answer, and persist the assistant reply.
     if not request.messages:
         raise HTTPException(
             status_code=400,

@@ -1,3 +1,5 @@
+// Render the conversation header, messages, document controls, and chat states.
+
 import { useEffect, useRef, useState } from "react";
 import {
   Bot,
@@ -44,6 +46,7 @@ const suggestions = [
   "What should I remember?",
 ];
 
+// Display the active chat and forward user actions to the app shell.
 export default function ChatWindow({
   messages,
   documents,
@@ -76,6 +79,7 @@ export default function ChatWindow({
   }, [messages.length, isGenerating, selectedIds.length]);
   useEffect(() => {
     if (!showPinnedDocuments) return;
+    // Close the view-document menu when a pointer event lands outside it.
     const closeOnOutsideClick = (event: PointerEvent) => {
       const target = event.target as Node;
       if (!pinnedPanelRef.current?.contains(target) && !pinnedCountButtonRef.current?.contains(target)) {
@@ -87,6 +91,7 @@ export default function ChatWindow({
   }, [showPinnedDocuments]);
   useEffect(() => {
     if (!showViewDocumentMenu) return;
+    // Close the pinned-document panel when a pointer event lands outside it.
     const closeOnOutsideClick = (event: PointerEvent) => {
       if (!viewDocumentMenuRef.current?.contains(event.target as Node)) setShowViewDocumentMenu(false);
     };
@@ -94,6 +99,7 @@ export default function ChatWindow({
     return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
   }, [showViewDocumentMenu]);
 
+  // Copy a message's text to the system clipboard.
   const copyMessage = async (message: ChatMessage) => {
     await navigator.clipboard.writeText(message.content);
     setCopiedId(message.id);

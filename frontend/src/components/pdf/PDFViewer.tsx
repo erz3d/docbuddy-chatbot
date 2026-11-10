@@ -1,3 +1,5 @@
+// Embed a stored PDF and provide close and page-navigation controls.
+
 import { X, FileText } from "lucide-react";
 import type { DocumentItem } from "../../types";
 import { documentFileUrl } from "../../services/api";
@@ -8,6 +10,7 @@ interface PDFViewerProps {
   onClose: () => void;
 }
 
+// Display the selected document in the browser's PDF viewer.
 export default function PDFViewer({
   document,
   onClose,

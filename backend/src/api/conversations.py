@@ -1,3 +1,5 @@
+# Expose conversation history, draft, archive, pin, and feedback operations.
+
 import uuid
 from typing import Literal
 
@@ -12,6 +14,7 @@ router = APIRouter()
 
 @router.get("/api/conversations")
 def list_conversations(archived: bool = Query(False)):
+    # List conversations filtered by their archived state.
     with get_connection() as db:
         rows = db.execute("""SELECT c.id,c.title,c.created_at,c.updated_at,
             (SELECT content FROM messages WHERE conversation_id=c.id ORDER BY created_at DESC LIMIT 1) preview
@@ -26,6 +29,7 @@ def list_conversations(archived: bool = Query(False)):
 
 @router.post("/api/conversations")
 def create_conversation():
+    # Create an empty conversation and return its identifier.
     conversation_id = str(uuid.uuid4())
     with get_connection() as db:
         db.execute("INSERT INTO conversations(id,title) VALUES(?, 'New conversation')", (conversation_id,))
@@ -34,6 +38,7 @@ def create_conversation():
 
 @router.get("/api/conversations/{conversation_id}")
 def get_conversation(conversation_id: str):
+    # Load a conversation's messages and pinned documents.
     with get_connection() as db:
         exists = db.execute("SELECT id FROM conversations WHERE id=?", (conversation_id,)).fetchone()
         if not exists:
@@ -72,6 +77,7 @@ class ConversationDraft(BaseModel):
 
 @router.put("/api/conversations/{conversation_id}/draft")
 def save_conversation_draft(conversation_id: str, payload: ConversationDraft):
+    # Persist the current draft messages and selected documents.
     try:
         persist_conversation_history(
             conversation_id,
@@ -90,6 +96,7 @@ class ConversationRename(BaseModel):
 
 @router.patch("/api/conversations/{conversation_id}")
 def rename_conversation(conversation_id: str, payload: ConversationRename):
+    # Replace a conversation title with the supplied title.
     title = payload.title.strip()
     if not title:
         raise HTTPException(400, "Conversation title is required")
@@ -107,6 +114,7 @@ class ArchiveUpdate(BaseModel):
 
 @router.patch("/api/conversations/{conversation_id}/archive")
 def set_conversation_archived(conversation_id: str, payload: ArchiveUpdate):
+    # Archive or restore the requested conversation.
     with get_connection() as db:
         cursor = db.execute("UPDATE conversations SET archived=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",
                             (int(payload.archived), conversation_id))
@@ -117,6 +125,7 @@ def set_conversation_archived(conversation_id: str, payload: ArchiveUpdate):
 
 @router.delete("/api/conversations/{conversation_id}")
 def delete_conversation(conversation_id: str):
+    # Permanently remove a conversation and its dependent records.
     with get_connection() as db:
         cursor = db.execute("DELETE FROM conversations WHERE id=?", (conversation_id,))
         if not cursor.rowcount:
@@ -126,6 +135,7 @@ def delete_conversation(conversation_id: str):
 
 @router.put("/api/conversations/{conversation_id}/documents")
 def set_pinned_documents(conversation_id: str, payload: PinnedDocuments):
+    # Replace the set of documents pinned to a conversation.
     document_ids = list(dict.fromkeys(payload.documentIds))
     with get_connection() as db:
         if not db.execute("SELECT 1 FROM conversations WHERE id=?", (conversation_id,)).fetchone():
@@ -150,6 +160,7 @@ class MessageUpdate(BaseModel):
 
 @router.patch("/api/conversations/{conversation_id}/messages/{message_id}")
 def update_message_feedback(conversation_id: str, message_id: str, payload: MessageUpdate):
+    # Save a like or dislike value for a conversation message.
     with get_connection() as db:
         cursor = db.execute("UPDATE messages SET liked=? WHERE id=? AND conversation_id=?",
                             (None if payload.liked is None else int(payload.liked), message_id, conversation_id))
@@ -160,6 +171,7 @@ def update_message_feedback(conversation_id: str, message_id: str, payload: Mess
 
 @router.delete("/api/conversations/{conversation_id}/messages")
 def clear_messages(conversation_id: str):
+    # Remove all messages from a conversation while retaining the conversation.
     with get_connection() as db:
         if not db.execute("SELECT 1 FROM conversations WHERE id=?", (conversation_id,)).fetchone():
             raise HTTPException(404, "Conversation not found")

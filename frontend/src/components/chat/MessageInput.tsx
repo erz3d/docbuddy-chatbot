@@ -1,3 +1,5 @@
+// Render the chat composer, attachment controls, and send action.
+
 import { useRef, useState } from "react";
 import {
   Paperclip,
@@ -17,6 +19,7 @@ interface MessageInputProps {
   disabled?: boolean;
 }
 
+// Collect a message and optional files before passing them to the chat view.
 export default function MessageInput({
   documents,
   selectedIds,
@@ -29,6 +32,7 @@ export default function MessageInput({
   const [showDocuments, setShowDocuments] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // Submit non-empty text and reset the composer after sending.
   const handleSend = () => {
     if (!message.trim() || disabled) return;
 
