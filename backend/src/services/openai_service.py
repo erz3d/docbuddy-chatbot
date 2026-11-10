@@ -26,10 +26,6 @@ async def generate_response(
             + (context or "No indexed excerpts were found for the selected documents.")
         )
 
-    response = await async_client.responses.create(
-        model=MODEL,
-        instructions=instructions,
-        input=messages,
-    )
+    response = await client.responses.create( model=MODEL, instructions=instructions,input=messages,)
 
     return response.output_text
