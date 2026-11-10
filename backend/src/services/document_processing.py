@@ -1,4 +1,4 @@
-"""PDF extraction and processing-state updates."""
+# Extract searchable page text from stored PDFs and record processing results.
 
 from pathlib import Path
 
@@ -8,6 +8,7 @@ from src.database import get_connection
 
 
 def process_document(document_id: str) -> None:
+    # Extract a PDF's page text and persist either the result or a clear error.
     with get_connection() as db:
         row = db.execute("SELECT file_path FROM documents WHERE id=?", (document_id,)).fetchone()
         if not row:

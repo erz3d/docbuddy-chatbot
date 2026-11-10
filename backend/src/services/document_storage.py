@@ -1,4 +1,4 @@
-"""Filesystem operations for uploaded PDF documents."""
+# Save uploaded PDFs to disk and remove their files when documents are deleted.
 
 import os
 from pathlib import Path
@@ -12,6 +12,7 @@ class EmptyDocumentError(ValueError):
 
 
 def document_path(document_id: str) -> Path:
+    # Build the stable on-disk path for a document's PDF.
     return DOCUMENTS_DIR / f"{document_id}.pdf"
 
 
@@ -19,7 +20,7 @@ async def save_pdf_upload(
     document_id: str,
     read_chunk: Callable[[int], Awaitable[bytes]],
 ) -> tuple[Path, int]:
-    """Stream an upload to an atomic temporary file and return its size."""
+    # Stream an upload to a temporary file, then atomically publish it.
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
     destination = document_path(document_id)
     temporary = destination.with_suffix(".uploading")
@@ -40,5 +41,6 @@ async def save_pdf_upload(
 
 
 def delete_pdf_file(path: str | Path | None) -> None:
+    # Remove a stored PDF if a path was recorded.
     if path:
         Path(path).unlink(missing_ok=True)

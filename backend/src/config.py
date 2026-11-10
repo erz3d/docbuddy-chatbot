@@ -1,3 +1,5 @@
+# Load required OpenAI settings and the assistant's base instructions.
+
 import os
 from pathlib import Path
 

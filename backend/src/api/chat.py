@@ -1,4 +1,6 @@
 
+# Validate chat requests, persist submitted history, and return model replies.
+
 import logging
 import uuid
 from typing import Literal
@@ -35,6 +37,7 @@ class ChatRequest(BaseModel):
 
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
+    # Save the conversation, generate an answer, and persist the assistant reply.
     if not request.messages:
         raise HTTPException(
             status_code=400,

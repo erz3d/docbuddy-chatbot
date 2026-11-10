@@ -1,3 +1,5 @@
+# Build document context and request assistant responses from OpenAI.
+
 from openai import AsyncOpenAI
 
 from src.config import API_KEY, MODEL, SYSTEM_PROMPT
@@ -7,6 +9,7 @@ client = AsyncOpenAI(api_key=API_KEY)
 
 
 def build_context(document_ids: list[str]) -> str:
+    # Format extracted pages from selected documents as model context.
     parts = []
     with get_connection() as db:
         for doc_id in document_ids:
@@ -22,6 +25,7 @@ def build_context(document_ids: list[str]) -> str:
 async def generate_response(
     messages: list[dict], document_ids: list[str] | None = None
 ) -> str:
+    # Send chat history and selected document context to the configured model.
     instructions = SYSTEM_PROMPT
 
     context = build_context(document_ids or [])

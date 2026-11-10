@@ -1,3 +1,5 @@
+// Load saved workspace data and resume polling documents still being extracted.
+
 import { useEffect, type Dispatch, type SetStateAction } from "react";
 import type { ChatMessage, Collection, ConversationItem, DocumentItem, Theme } from "../types";
 import { api, documentFileUrl } from "../services/api";
@@ -17,6 +19,7 @@ interface UseWorkspaceLoaderOptions {
   setPinnedDocuments: (ids: string[], persist?: boolean) => void;
 }
 
+// Restore settings, library data, and conversation lists when the app starts.
 export function useWorkspaceLoader({
   setTheme,
   setAppName,
@@ -30,6 +33,7 @@ export function useWorkspaceLoader({
 }: UseWorkspaceLoaderOptions) {
   useEffect(() => {
     let alive = true;
+    // Fetch and restore the saved workspace, then resume pending extraction.
     const loadWorkspace = async () => {
       try {
         const [savedSettings, savedCollections, savedDocuments, savedConversations, savedArchive] = await Promise.all([

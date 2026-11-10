@@ -1,4 +1,6 @@
 
+# Build the FastAPI app, configure startup recovery, and register API routes.
+
 import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +19,7 @@ app = FastAPI(title="DocBuddy API")
 
 @app.on_event("startup")
 async def startup() -> None:
+    # Initialize storage and resume document extraction left in progress.
     initialize_database()
     with get_connection() as db:
         pending_ids = [row["id"] for row in db.execute("SELECT id FROM documents WHERE status='uploading'")]
@@ -46,4 +49,5 @@ app.include_router(settings_router)
 # Health check endpoint
 @app.get("/api/health")
 async def health():
+    # Report that the local backend is responding.
     return {"status": "ok"}

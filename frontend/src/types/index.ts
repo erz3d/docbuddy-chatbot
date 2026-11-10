@@ -1,3 +1,5 @@
+// Share the app's core data shapes across views, hooks, and API services.
+
 export type Theme = "dark" | "light";
 
 export type Page = "chat" | "documents" | "settings" | "archive" | "history";

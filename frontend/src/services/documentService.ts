@@ -1,3 +1,5 @@
+// Upload PDF files and poll the backend until text extraction finishes.
+
 import { api } from "./api";
 import type { DocumentProcessingStage } from "../types";
 
@@ -16,9 +18,11 @@ interface DocumentProcessingStatus {
   error?: string | null;
 }
 
+// Pause between status checks without blocking the browser UI.
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 
+// Upload a PDF as multipart form data to the document API.
 export async function uploadDocument(file: File): Promise<UploadedDocument> {
   const formData = new FormData();
   formData.append("file", file);
@@ -29,6 +33,7 @@ export async function uploadDocument(file: File): Promise<UploadedDocument> {
   });
 }
 
+// Poll processing state and report updates until extraction succeeds or fails.
 export async function waitForDocumentProcessing(
   documentId: string,
   onStatus?: (status: DocumentProcessingStatus["status"], stage: DocumentProcessingStage, error?: string | null) => void,

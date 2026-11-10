@@ -1,4 +1,4 @@
-"""SQLite database setup for DocBuddy's local data."""
+# Manage DocBuddy's SQLite schema, connections, and legacy file migration.
 
 import os
 import sqlite3
@@ -13,7 +13,7 @@ DOCUMENTS_DIR = BACKEND_DIR / "data" / "documents"
 
 
 def _migrate_document_files(connection: sqlite3.Connection) -> None:
-    """Move legacy PDF BLOBs to files, retaining an idempotent recovery path."""
+    # Move legacy PDF BLOBs to files and retain an idempotent recovery path.
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
     rows = connection.execute(
         "SELECT id,content,file_path FROM documents WHERE content IS NOT NULL OR file_path IS NULL"
@@ -33,7 +33,7 @@ def _migrate_document_files(connection: sqlite3.Connection) -> None:
 
 @contextmanager
 def get_connection() -> Iterator[sqlite3.Connection]:
-    """Open a connection with foreign key enforcement enabled."""
+    # Open a transactional database connection with foreign keys enabled.
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
@@ -49,7 +49,7 @@ def get_connection() -> Iterator[sqlite3.Connection]:
 
 
 def initialize_database() -> None:
-    """Create the local schema if it does not already exist."""
+    # Create or migrate the local schema and recover stored document files.
     with get_connection() as connection:
         connection.executescript(
             """

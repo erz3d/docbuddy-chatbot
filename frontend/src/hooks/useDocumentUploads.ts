@@ -1,3 +1,5 @@
+// Manage library uploads, staged chat attachments, and their processing state.
+
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { DocumentItem } from "../types";
 import { documentFileUrl } from "../services/api";
@@ -15,9 +17,11 @@ interface UseDocumentUploadsOptions {
 }
 
 function createId() {
+  // Generate a temporary ID for a document before the server assigns one.
   return crypto.randomUUID();
 }
 
+// Provide upload actions while synchronizing document and pinned-chat state.
 export function useDocumentUploads({
   documents,
   setDocuments,
@@ -25,6 +29,7 @@ export function useDocumentUploads({
   selectedIdsRef,
   setPinnedDocuments,
 }: UseDocumentUploadsOptions) {
+  // Upload library files immediately or stage chat attachments until send.
   const uploadFiles = (files: FileList | null, fromLibrary = false) => {
     if (!files) return;
     Array.from(files).forEach((file) => {
@@ -78,6 +83,7 @@ export function useDocumentUploads({
     });
   };
 
+  // Upload staged attachments and replace temporary IDs with server IDs.
   const uploadPendingDocuments = async () => {
     const pendingIds = selectedIdsRef.current.filter((id) => pendingUploadsRef.current.has(id));
     const resolvedIds = new Map<string, string>();
@@ -118,6 +124,7 @@ export function useDocumentUploads({
     return resolvedIds;
   };
 
+  // Release staged file URLs and remove attachments that were not sent.
   const discardPendingUploads = () => {
     pendingUploadsRef.current.forEach((_, id) => {
       const document = documents.find((item) => item.id === id);
