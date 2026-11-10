@@ -1,4 +1,4 @@
-# Manage DocBuddy's SQLite schema, connections, and legacy file migration.
+# Manage DocBuddy's SQLite schema, vector data, connections, and file migration.
 
 import os
 import sqlite3
@@ -84,6 +84,18 @@ def initialize_database() -> None:
                 text TEXT NOT NULL,
                 PRIMARY KEY (document_id, page_number)
             );
+            CREATE TABLE IF NOT EXISTS document_chunks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                page_number INTEGER NOT NULL CHECK (page_number > 0),
+                chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
+                text TEXT NOT NULL,
+                embedding BLOB NOT NULL,
+                embedding_model TEXT NOT NULL,
+                UNIQUE(document_id, page_number, chunk_index)
+            );
+            CREATE INDEX IF NOT EXISTS idx_document_chunks_document
+                ON document_chunks(document_id);
             CREATE INDEX IF NOT EXISTS idx_documents_collection
                 ON documents(collection_id);
             CREATE TABLE IF NOT EXISTS document_collections (

@@ -47,6 +47,7 @@ function documentStatusLabel(document: DocumentItem) {
   if (document.status === "failed" || document.stage === "failed") return "Failed";
   if (document.stage === "uploading") return "Uploading";
   if (document.stage === "extracting") return "Extracting text";
+  if (document.stage === "ready_for_indexing" || document.stage === "indexing") return "Indexing";
   return "Ready";
 }
 

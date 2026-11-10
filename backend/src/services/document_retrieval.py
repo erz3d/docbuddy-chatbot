@@ -1,0 +1,82 @@
+# Embed questions and retrieve page-aware document chunks from SQLite.
+
+import math
+import struct
+from dataclasses import dataclass
+
+from src.config import EMBEDDING_MODEL
+from src.database import get_connection
+from src.services.openai_clients import async_client
+
+RETRIEVAL_LIMIT = 6
+
+
+@dataclass(frozen=True)
+class RetrievedChunk:
+    # Keep source details alongside each excerpt selected for a response.
+
+    document_id: str
+    document_name: str
+    page_number: int
+    text: str
+    score: float
+
+
+async def retrieve_relevant_chunks(question: str, document_ids: list[str]) -> list[RetrievedChunk]:
+    # Embed the question and rank chunks from only the selected documents.
+    selected_ids = list(dict.fromkeys(document_ids))
+    if not selected_ids or not question.strip():
+        return []
+
+    placeholders = ",".join("?" for _ in selected_ids)
+    with get_connection() as db:
+        rows = db.execute(
+            f"""SELECT c.document_id,d.name,c.page_number,c.text,c.embedding
+                FROM document_chunks c JOIN documents d ON d.id=c.document_id
+                WHERE d.status='ready' AND c.embedding_model=?
+                  AND c.document_id IN ({placeholders})""",
+            [EMBEDDING_MODEL, *selected_ids],
+        ).fetchall()
+    if not rows:
+        return []
+
+    query_response = await async_client.embeddings.create(
+        model=EMBEDDING_MODEL,
+        input=question,
+        encoding_format="float",
+    )
+    query_vector = query_response.data[0].embedding
+    query_norm = math.sqrt(sum(value * value for value in query_vector))
+    if query_norm == 0:
+        return []
+
+    scored_chunks = []
+    for row in rows:
+        # Stored vectors are little-endian float32 values for compact SQLite storage.
+        dimension = len(row["embedding"]) // 4
+        if dimension != len(query_vector):
+            continue
+        vector = struct.unpack(f"<{dimension}f", row["embedding"])
+        vector_norm = math.sqrt(sum(value * value for value in vector))
+        if vector_norm == 0:
+            continue
+        score = sum(left * right for left, right in zip(query_vector, vector)) / (query_norm * vector_norm)
+        scored_chunks.append(
+            RetrievedChunk(
+                document_id=row["document_id"],
+                document_name=row["name"],
+                page_number=row["page_number"],
+                text=row["text"],
+                score=score,
+            )
+        )
+
+    return sorted(scored_chunks, key=lambda chunk: chunk.score, reverse=True)[:RETRIEVAL_LIMIT]
+
+
+def format_retrieved_context(chunks: list[RetrievedChunk]) -> str:
+    # Format retrieved text with source labels that the model can cite.
+    return "\n\n".join(
+        f"[{chunk.document_name} | page {chunk.page_number}]\n{chunk.text}"
+        for chunk in chunks
+    )

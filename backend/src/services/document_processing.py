@@ -1,10 +1,11 @@
-# Extract searchable page text from stored PDFs and record processing results.
+# Extract page text, create document indexes, and record processing results.
 
 from pathlib import Path
 
 from pypdf import PdfReader
 
 from src.database import get_connection
+from src.services.document_indexing import index_document
 
 
 def process_document(document_id: str) -> None:
@@ -47,9 +48,10 @@ def process_document(document_id: str) -> None:
                 [(document_id, number, text) for number, text in enumerate(pages, 1)],
             )
             db.execute(
-                "UPDATE documents SET status='ready',processing_stage='ready_for_indexing',processing_error=NULL WHERE id=?",
+                "UPDATE documents SET status='uploading',processing_stage='ready_for_indexing',processing_error=NULL WHERE id=?",
                 (document_id,),
             )
+        index_document(document_id)
     except Exception:
         with get_connection() as db:
             db.execute(
