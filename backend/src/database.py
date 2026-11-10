@@ -148,7 +148,7 @@ def initialize_database() -> None:
                 message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
                 document_id TEXT REFERENCES documents(id) ON DELETE SET NULL,
                 document_name TEXT NOT NULL,
-                page INTEGER NOT NULL CHECK (page > 0)
+                page INTEGER NOT NULL CHECK (page > 0),
                 excerpt TEXT NOT NULL DEFAULT ''
             );
 
