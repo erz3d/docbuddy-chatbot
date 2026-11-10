@@ -71,7 +71,6 @@ export default function ChatWindow({
   const viewDocumentMenuRef = useRef<HTMLDivElement>(null);
   const pinnedDocuments = documents.filter((doc) => selectedIds.includes(doc.id));
 
-  useEffect(() => setTitleDraft(conversationTitle), [conversationTitle]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, isGenerating, selectedIds.length]);
@@ -112,7 +111,7 @@ export default function ChatWindow({
               <button type="button" onClick={() => { setTitleDraft(conversationTitle); setEditingTitle(false); }} className="app-muted text-xs">Cancel</button>
             </form>
           ) : (
-            <button onClick={() => setEditingTitle(true)} className="group flex max-w-full items-center gap-2 text-left" title="Rename discussion">
+            <button onClick={() => { setTitleDraft(conversationTitle); setEditingTitle(true); }} className="group flex max-w-full items-center gap-2 text-left" title="Rename discussion">
               <h1 className="truncate text-sm font-semibold md:text-base">{conversationTitle}</h1>
               <Pencil size={13} className="app-muted shrink-0 opacity-60 group-hover:opacity-100" />
             </button>

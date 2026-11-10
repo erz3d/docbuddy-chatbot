@@ -17,7 +17,6 @@ import type { Collection, ConversationItem, DocumentItem } from "../../types";
 interface DocumentLibraryProps {
   documents: DocumentItem[];
   collections: Collection[];
-  selectedIds: string[];
   onUpload: (files: FileList | null) => void;
   onDelete: (id: string) => void;
   onCreateCollection: (name: string, color: string) => void;
@@ -41,10 +40,16 @@ const collectionColors = [
   "#38BDF8",
 ];
 
+function documentStatusLabel(document: DocumentItem) {
+  if (document.status === "failed" || document.stage === "failed") return "Failed";
+  if (document.stage === "uploading") return "Uploading";
+  if (document.stage === "extracting") return "Extracting text";
+  return "Ready";
+}
+
 export default function DocumentLibrary({
   documents,
   collections,
-  selectedIds: _selectedIds,
   onUpload,
   onDelete,
   onCreateCollection,
@@ -168,7 +173,7 @@ export default function DocumentLibrary({
                   <FileText size={19} className="text-red-400" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{doc.name}</p>
-                    <p className="app-muted mt-1 text-xs">{(doc.size / 1024 / 1024).toFixed(2)} MB · {doc.status === "ready" ? "Ready" : doc.status}</p>
+                    <p className="app-muted mt-1 text-xs">{(doc.size / 1024 / 1024).toFixed(2)} MB · {documentStatusLabel(doc)}</p>
                   </div>
                   {doc.error && <p className="w-full pl-8 text-xs text-red-400" title={doc.error}>{doc.error}</p>}
                   {renderDocumentActions(doc, true)}
@@ -394,7 +399,7 @@ export default function DocumentLibrary({
                   <p className="truncate text-sm font-medium">{doc.name}</p>
                   <p className="app-muted mt-1 text-xs">
                     {(doc.size / 1024 / 1024).toFixed(2)} MB ·{" "}
-                    {doc.status === "ready" ? "Ready" : doc.status}
+                    {documentStatusLabel(doc)}
                   </p>
                   {doc.error && <p className="mt-1 text-xs text-red-400" title={doc.error}>{doc.error}</p>}
                 </div>

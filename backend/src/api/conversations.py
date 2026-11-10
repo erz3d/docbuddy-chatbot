@@ -1,11 +1,11 @@
 import uuid
-from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from src.database import get_connection
+from src.services.conversation_service import MissingDocumentsError, persist_conversation_history
 
 router = APIRouter()
 
@@ -72,32 +72,15 @@ class ConversationDraft(BaseModel):
 
 @router.put("/api/conversations/{conversation_id}/draft")
 def save_conversation_draft(conversation_id: str, payload: ConversationDraft):
-    now = datetime.now(timezone.utc).isoformat()
-    first_user = next((message.content for message in payload.messages if message.role == "user"), "New conversation")
-    with get_connection() as db:
-        if not db.execute("SELECT 1 FROM conversations WHERE id=?", (conversation_id,)).fetchone():
-            db.execute("INSERT INTO conversations(id,title) VALUES(?,?)",
-                       (conversation_id, first_user[:70] or "New conversation"))
-        document_ids = list(dict.fromkeys(payload.documentIds))
-        if document_ids:
-            placeholders = ",".join("?" for _ in document_ids)
-            found = db.execute(f"SELECT id FROM documents WHERE id IN ({placeholders})", document_ids).fetchall()
-            if len(found) != len(document_ids):
-                raise HTTPException(404, "One or more documents were not found")
-        db.execute("DELETE FROM messages WHERE conversation_id=?", (conversation_id,))
-        for message in payload.messages:
-            timestamp = (datetime.fromtimestamp(message.timestamp / 1000, timezone.utc).isoformat()
-                         if isinstance(message.timestamp, int) else message.timestamp or now)
-            db.execute("INSERT INTO messages(id,conversation_id,role,content,liked,created_at) VALUES(?,?,?,?,?,?)",
-                       (message.id or str(uuid.uuid4()), conversation_id, message.role, message.content,
-                        None if message.liked is None else int(message.liked), timestamp))
-        db.execute("DELETE FROM conversation_documents WHERE conversation_id=?", (conversation_id,))
-        db.executemany("INSERT INTO conversation_documents(conversation_id,document_id) VALUES(?,?)",
-                       [(conversation_id, document_id) for document_id in document_ids])
-        db.executemany("INSERT OR IGNORE INTO conversation_document_history(conversation_id,document_id) VALUES(?,?)",
-                       [(conversation_id, document_id) for document_id in document_ids])
-        db.execute("UPDATE conversations SET title=CASE WHEN title='New conversation' THEN ? ELSE title END,updated_at=? WHERE id=?",
-                   (first_user[:70] or "New conversation", now, conversation_id))
+    try:
+        persist_conversation_history(
+            conversation_id,
+            payload.messages,
+            payload.documentIds,
+            require_documents=True,
+        )
+    except MissingDocumentsError as exc:
+        raise HTTPException(404, str(exc)) from exc
     return {"id": conversation_id, "saved": True}
 
 
