@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import { askModel } from "./services/chatService";
-import { uploadDocument, waitForDocumentProcessing } from "./services/documentService";
-import { api, documentFileUrl } from "./services/api";
+import { api } from "./services/api";
+import { useDocumentUploads } from "./hooks/useDocumentUploads";
+import { useWorkspaceLoader } from "./hooks/useWorkspaceLoader";
 
 import Sidebar from "./components/layout/Sidebar";
 import ArchiveView from "./components/layout/ArchiveView";
@@ -44,7 +45,7 @@ export default function App() {
   const [archivedConversations, setArchivedConversations] = useState<ConversationItem[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
-  activeConversationIdRef.current = activeConversationId;
+  useEffect(() => { activeConversationIdRef.current = activeConversationId; }, [activeConversationId]);
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -55,8 +56,7 @@ export default function App() {
 
   const abortRef = useRef<AbortController | null>(null);
   const pendingUploadsRef = useRef<Map<string, File>>(new Map());
-
-  const setPinnedDocuments = (ids: string[], persist = true) => {
+  const setPinnedDocuments = useCallback((ids: string[], persist = true) => {
     selectedIdsRef.current = ids;
     setSelectedIds(ids);
     const conversationId = activeConversationIdRef.current;
@@ -70,52 +70,24 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ documentIds: savedIds }),
     }).catch((error) => window.alert(String(error)));
-  };
-
-  useEffect(() => {
-    let alive = true;
-    const loadWorkspace = async () => {
-      try {
-        const [savedSettings, savedCollections, savedDocuments, savedConversations, savedArchive] = await Promise.all([
-          api<{ theme: Theme; appName: string }>("/api/settings"),
-          api<Collection[]>("/api/collections"),
-          api<Array<Omit<DocumentItem, "addedAt"> & { addedAt: string | number }>>("/api/documents"),
-          api<ConversationItem[]>("/api/conversations"),
-          api<ConversationItem[]>("/api/conversations?archived=true"),
-        ]);
-        if (!alive) return;
-        setTheme(savedSettings.theme);
-        setAppName(savedSettings.appName);
-        setCollections(savedCollections);
-        const restoredDocuments = savedDocuments.map((doc) => ({ ...doc, collectionIds: doc.collectionIds ?? (doc.collectionId ? [doc.collectionId] : []), backendId: doc.id, addedAt: typeof doc.addedAt === "number" ? doc.addedAt : Date.parse(doc.addedAt), url: documentFileUrl(doc.id) }));
-        setDocuments(restoredDocuments);
-        restoredDocuments.filter((doc) => doc.status === "uploading").forEach((doc) => {
-          void waitForDocumentProcessing(doc.id, (status, error) => {
-            if (alive) setDocuments((current) => current.map((item) => item.id === doc.id
-              ? { ...item, status, error: error ?? null }
-              : item));
-          }).catch((error) => {
-            if (alive) setDocuments((current) => current.map((item) => item.id === doc.id
-              ? { ...item, status: "failed", error: String(error) }
-              : item));
-          });
-        });
-        const chats = savedConversations;
-        if (!alive) return;
-        setConversations(chats);
-        setArchivedConversations(savedArchive);
-        setActiveConversationId(null);
-        activeConversationIdRef.current = null;
-        setMessages([]);
-        setPinnedDocuments([], false);
-      } catch (error) {
-        console.error("Could not load saved DocBuddy data", error);
-        if (alive) window.alert("Could not load saved data from the database. Check that the backend is running.");
-      }
-    };
-    void loadWorkspace();
-    return () => { alive = false; };
   }, []);
+
+  const {
+    uploadFiles,
+    uploadPendingDocuments,
+    discardPendingUploads,
+  } = useDocumentUploads({ documents, setDocuments, pendingUploadsRef, selectedIdsRef, setPinnedDocuments });
+  useWorkspaceLoader({
+    setTheme,
+    setAppName,
+    setCollections,
+    setDocuments,
+    setMessages,
+    setConversations,
+    setArchivedConversations,
+    setActiveConversationId,
+    setPinnedDocuments,
+  });
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -139,61 +111,6 @@ export default function App() {
       : [...current, id];
     setPinnedDocuments(nextIds);
   };
-
-  const uploadFiles = (files: FileList | null, fromLibrary = false) => {
-    if (!files) return;
-  
-    Array.from(files).forEach((file) => {
-      if (file.type !== "application/pdf") {
-        window.alert(`${file.name} is not a PDF file.`);
-        return;
-      }
-  
-      const id = createId();
-  
-      const localUrl = URL.createObjectURL(file);
-      const newDocument: DocumentItem = {
-        id,
-        name: file.name,
-        size: file.size,
-        status: fromLibrary ? "uploading" : "ready",
-        collectionId: null,
-        url: localUrl,
-        addedAt: Date.now(),
-        pending: !fromLibrary,
-      };
-  
-      setDocuments((current) => [...current, newDocument]);
-      if (fromLibrary) {
-        void uploadDocument(file)
-          .then(async ({ id: backendId, name, size, status }) => {
-            URL.revokeObjectURL(localUrl);
-            setDocuments((current) => current.map((doc) => doc.id === id
-              ? { ...doc, id: backendId, backendId, name, size, url: documentFileUrl(backendId), status, pending: false }
-              : doc));
-            try {
-              await waitForDocumentProcessing(backendId, (nextStatus, error) => {
-                setDocuments((current) => current.map((doc) => doc.id === backendId
-                  ? { ...doc, status: nextStatus, error: error ?? null }
-                  : doc));
-              });
-            } catch (error) {
-              setDocuments((current) => current.map((doc) => doc.id === backendId
-                ? { ...doc, status: "failed", error: String(error) }
-                : doc));
-            }
-          })
-          .catch((error) => setDocuments((current) => current.map((doc) => doc.id === id
-            ? { ...doc, status: "failed", pending: false, error: String(error) }
-            : doc)));
-      } else {
-        pendingUploadsRef.current.set(id, file);
-        setPinnedDocuments([...new Set([...selectedIdsRef.current, id])], false);
-      }
-    });
-  };
-
-  const uploadFromLibrary = (files: FileList | null) => uploadFiles(files, true);
 
   const deleteDocument = (id: string) => {
     const doc = documents.find((item) => item.id === id);
@@ -321,31 +238,7 @@ export default function App() {
         }),
       });
 
-      const pendingIds = selectedIdsRef.current.filter((id) => pendingUploadsRef.current.has(id));
-      const resolvedIds = new Map<string, string>();
-      for (const pendingId of pendingIds) {
-        const file = pendingUploadsRef.current.get(pendingId);
-        if (!file) continue;
-        const uploaded = await uploadDocument(file);
-        resolvedIds.set(pendingId, uploaded.id);
-        const localDocument = documents.find((doc) => doc.id === pendingId);
-        if (localDocument?.url) URL.revokeObjectURL(localDocument.url);
-        pendingUploadsRef.current.delete(pendingId);
-        setDocuments((current) => current.map((doc) => doc.id === pendingId
-          ? { ...doc, id: uploaded.id, backendId: uploaded.id, name: uploaded.name, size: uploaded.size, url: documentFileUrl(uploaded.id), pending: false, status: uploaded.status }
-          : doc));
-        setPinnedDocuments(selectedIdsRef.current.map((id) => resolvedIds.get(id) ?? id), false);
-        try {
-          await waitForDocumentProcessing(uploaded.id, (status, error) => {
-            setDocuments((current) => current.map((doc) => doc.id === uploaded.id
-              ? { ...doc, status, error: error ?? null }
-              : doc));
-          });
-        } catch (error) {
-          setPinnedDocuments(selectedIdsRef.current.filter((id) => id !== uploaded.id), false);
-          throw error;
-        }
-      }
+      const resolvedIds = await uploadPendingDocuments();
       const documentIds = selectedIdsRef.current.map((id) => resolvedIds.get(id) ?? id);
       if (resolvedIds.size > 0) setPinnedDocuments(documentIds, false);
       const result = await askModel(history, documentIds, conversationId, controller.signal);
@@ -461,13 +354,7 @@ export default function App() {
 
   const newConversation = () => {
     stopGeneration();
-    pendingUploadsRef.current.forEach((_, id) => {
-      const pendingDocument = documents.find((doc) => doc.id === id);
-      if (pendingDocument?.url) URL.revokeObjectURL(pendingDocument.url);
-    });
-    const pendingIds = new Set(pendingUploadsRef.current.keys());
-    pendingUploadsRef.current.clear();
-    setDocuments((current) => current.filter((doc) => !pendingIds.has(doc.id)));
+    discardPendingUploads();
     activeConversationIdRef.current = null;
     setActiveConversationId(null);
     setPinnedDocuments([], false);
@@ -481,13 +368,7 @@ export default function App() {
     try {
       const opened = await api<{ messages: ChatMessage[]; documentIds: string[] }>(`/api/conversations/${id}`);
       setMessages(opened.messages.map((message) => ({ ...message, timestamp: typeof message.timestamp === "number" ? message.timestamp : Date.parse(message.timestamp as unknown as string) })));
-      pendingUploadsRef.current.forEach((_, pendingId) => {
-        const pendingDocument = documents.find((doc) => doc.id === pendingId);
-        if (pendingDocument?.url) URL.revokeObjectURL(pendingDocument.url);
-      });
-      const pendingIds = new Set(pendingUploadsRef.current.keys());
-      pendingUploadsRef.current.clear();
-      setDocuments((current) => current.filter((doc) => !pendingIds.has(doc.id)));
+      discardPendingUploads();
       setActiveConversationId(id);
       activeConversationIdRef.current = id;
       setPinnedDocuments(opened.documentIds ?? [], false);
@@ -628,8 +509,7 @@ export default function App() {
               collections={collections}
               conversations={conversations}
               activeCollectionId={activeCollectionId}
-              selectedIds={selectedIds}
-              onUpload={uploadFromLibrary}
+              onUpload={(files) => uploadFiles(files, true)}
               onDelete={deleteDocument}
               onCreateCollection={createCollection}
               onToggleFavorite={toggleFavorite}

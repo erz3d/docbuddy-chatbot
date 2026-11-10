@@ -74,6 +74,7 @@ def initialize_database() -> None:
                 file_path TEXT,
                 status TEXT NOT NULL DEFAULT 'ready'
                     CHECK (status IN ('ready', 'uploading', 'failed')),
+                processing_stage TEXT NOT NULL DEFAULT 'ready_for_indexing',
                 processing_error TEXT,
                 added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
             );
@@ -156,13 +157,17 @@ def initialize_database() -> None:
             connection.execute("ALTER TABLE documents ADD COLUMN file_path TEXT")
         if "processing_error" not in document_columns:
             connection.execute("ALTER TABLE documents ADD COLUMN processing_error TEXT")
+        if "processing_stage" not in document_columns:
+            connection.execute("ALTER TABLE documents ADD COLUMN processing_stage TEXT NOT NULL DEFAULT 'ready_for_indexing'")
+        connection.execute("UPDATE documents SET processing_stage='failed' WHERE status='failed'")
+        connection.execute("UPDATE documents SET processing_stage='extracting' WHERE status='uploading'")
         _migrate_document_files(connection)
         for row in connection.execute("SELECT id,file_path FROM documents WHERE file_path IS NOT NULL"):
             if not Path(row["file_path"]).is_file():
                 connection.execute(
-                    "UPDATE documents SET status='failed',processing_error='The stored PDF file is missing.' WHERE id=?",
+                    "UPDATE documents SET status='failed',processing_stage='failed',processing_error='The stored PDF file is missing.' WHERE id=?",
                     (row["id"],),
                 )
         connection.execute(
-            "UPDATE documents SET status='failed',processing_error='The stored PDF file is missing.' WHERE file_path IS NULL AND content IS NULL"
+            "UPDATE documents SET status='failed',processing_stage='failed',processing_error='The stored PDF file is missing.' WHERE file_path IS NULL AND content IS NULL"
         )

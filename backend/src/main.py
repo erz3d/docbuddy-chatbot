@@ -2,11 +2,13 @@
 import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.documents import extract_document_text, router as documents_router
+from src.api.collections import router as collections_router
+from src.api.documents import router as documents_router
 from src.api.chat import router as chat_router
 from src.api.conversations import router as conversations_router
 from src.api.settings import router as settings_router
 from src.database import get_connection, initialize_database
+from src.services.document_processing import process_document
 
 
 # Create FastAPI application
@@ -19,7 +21,7 @@ async def startup() -> None:
     with get_connection() as db:
         pending_ids = [row["id"] for row in db.execute("SELECT id FROM documents WHERE status='uploading'")]
     for document_id in pending_ids:
-        asyncio.create_task(asyncio.to_thread(extract_document_text, document_id))
+        asyncio.create_task(asyncio.to_thread(process_document, document_id))
 
 
 # Configure CORS for React frontend
@@ -36,6 +38,7 @@ app.add_middleware(
 
 # Register chat routes
 app.include_router(chat_router)
+app.include_router(collections_router)
 app.include_router(documents_router)
 app.include_router(conversations_router)
 app.include_router(settings_router)
