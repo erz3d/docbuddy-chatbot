@@ -1,7 +1,6 @@
 
 import logging
 import uuid
-from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -9,7 +8,7 @@ from openai import APIError
 from pydantic import BaseModel
 
 from src.services.openai_service import generate_response
-from src.database import get_connection
+from src.services.conversation_service import persist_assistant_message, persist_conversation_history
 
 router = APIRouter()
 
@@ -43,47 +42,22 @@ async def chat(request: ChatRequest):
         )
 
     try:
-        messages = [
-            {
-                "role": message.role,
-                "content": message.content,
-            }
-            for message in request.messages
-        ]
-
-        answer = await generate_response(messages, request.documentIds)
-        answer_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
         conversation_id = request.conversationId or str(uuid.uuid4())
-        with get_connection() as db:
-            if request.conversationId:
-                if not db.execute("SELECT 1 FROM conversations WHERE id=?", (conversation_id,)).fetchone():
-                    raise HTTPException(404, "Conversation not found")
-                db.execute("DELETE FROM messages WHERE conversation_id=?", (conversation_id,))
-            else:
-                title = next((m.content for m in request.messages if m.role == "user"), "New conversation")
-                db.execute("INSERT INTO conversations(id,title) VALUES(?,?)", (conversation_id, title[:70] or "New conversation"))
-            document_ids = list(dict.fromkeys(request.documentIds))
-            db.execute("DELETE FROM conversation_documents WHERE conversation_id=?", (conversation_id,))
-            for document_id in document_ids:
-                if db.execute("SELECT 1 FROM documents WHERE id=?", (document_id,)).fetchone():
-                    db.execute("INSERT INTO conversation_documents(conversation_id,document_id) VALUES(?,?)",
-                               (conversation_id, document_id))
-                    db.execute("INSERT OR IGNORE INTO conversation_document_history(conversation_id,document_id) VALUES(?,?)",
-                               (conversation_id, document_id))
-            for item in request.messages:
-                stamp = (datetime.fromtimestamp(item.timestamp / 1000, timezone.utc).isoformat()
-                         if isinstance(item.timestamp, int) else item.timestamp or now)
-                db.execute("INSERT INTO messages(id,conversation_id,role,content,liked,created_at) VALUES(?,?,?,?,?,?)",
-                           (item.id or str(uuid.uuid4()), conversation_id, item.role, item.content,
-                            None if item.liked is None else int(item.liked),
-                            stamp))
-            db.execute("INSERT INTO messages(id,conversation_id,role,content,created_at) VALUES(?,?,?,?,?)",
-                       (answer_id, conversation_id, "assistant", answer, now))
-            first_user = next((m.content for m in request.messages if m.role == "user"), "New conversation")
-            db.execute("UPDATE conversations SET title=CASE WHEN title='New conversation' THEN ? ELSE title END,updated_at=? WHERE id=?",
-                       (first_user[:70], now, conversation_id))
-        return {"content": answer, "id": answer_id, "timestamp": now, "conversationId": conversation_id}
+        answer_id = str(uuid.uuid4())
+
+        # Persist the submitted history before waiting on the model so a failed
+        # or interrupted model request does not discard the user's messages.
+        persist_conversation_history(
+            conversation_id,
+            request.messages,
+            request.documentIds,
+            require_documents=False,
+        )
+
+        messages = [{"role": message.role, "content": message.content} for message in request.messages]
+        answer = await generate_response(messages, request.documentIds)
+        answer_time = persist_assistant_message(conversation_id, answer_id, answer)
+        return {"content": answer, "id": answer_id, "timestamp": answer_time, "conversationId": conversation_id}
 
     except HTTPException:
         raise

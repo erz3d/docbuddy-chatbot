@@ -1,6 +1,7 @@
 export type Theme = "dark" | "light";
 
 export type Page = "chat" | "documents" | "settings" | "archive" | "history";
+export type DocumentProcessingStage = "uploading" | "extracting" | "ready_for_indexing" | "failed";
 
 export interface DocumentItem {
   id: string;
@@ -9,6 +10,8 @@ export interface DocumentItem {
   name: string;
   size: number;
   status: "ready" | "uploading" | "failed";
+  stage?: DocumentProcessingStage;
+  error?: string | null;
   collectionId: string | null;
   collectionIds?: string[];
   url?: string;

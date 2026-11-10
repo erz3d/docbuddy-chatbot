@@ -104,7 +104,10 @@ export default function MessageInput({
                       <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selectedIds.includes(doc.id) ? "border-teal-500 bg-teal-500 text-white" : "border-[var(--border)]"}`}>
                         {selectedIds.includes(doc.id) && <Check size={11} />}
                       </span>
-                      <span className="truncate">{doc.name}</span>
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="block truncate">{doc.name}</span>
+                        {doc.error ? <span className="block truncate text-[10px] text-red-400">{doc.error}</span> : doc.stage === "extracting" ? <span className="app-muted block text-[10px]">Extracting text…</span> : null}
+                      </span>
                     </button>
                   ))
                 )}

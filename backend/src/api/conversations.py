@@ -1,9 +1,11 @@
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from src.database import get_connection
+from src.services.conversation_service import MissingDocumentsError, persist_conversation_history
 
 router = APIRouter()
 
@@ -53,6 +55,33 @@ def get_conversation(conversation_id: str):
 
 class PinnedDocuments(BaseModel):
     documentIds: list[str]
+
+
+class DraftMessage(BaseModel):
+    id: str | None = None
+    role: Literal["user", "assistant"]
+    content: str
+    liked: bool | None = None
+    timestamp: str | int | None = None
+
+
+class ConversationDraft(BaseModel):
+    messages: list[DraftMessage]
+    documentIds: list[str] = []
+
+
+@router.put("/api/conversations/{conversation_id}/draft")
+def save_conversation_draft(conversation_id: str, payload: ConversationDraft):
+    try:
+        persist_conversation_history(
+            conversation_id,
+            payload.messages,
+            payload.documentIds,
+            require_documents=True,
+        )
+    except MissingDocumentsError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"id": conversation_id, "saved": True}
 
 
 class ConversationRename(BaseModel):
