@@ -43,18 +43,34 @@ def persist_conversation_history(
             found_ids = {row["id"] for row in found}
             unique_document_ids = [document_id for document_id in unique_document_ids if document_id in found_ids]
 
-        db.execute("DELETE FROM messages WHERE conversation_id=?", (conversation_id,))
+
+        # Upsert instead of delete-and-reinsert: deleting a message would cascade
+        # to its citations, which the client never sends back.
+        kept_ids = []
         for message in messages:
+            message_id = message.id or str(uuid.uuid4())
+            kept_ids.append(message_id)
             timestamp = (
                 datetime.fromtimestamp(message.timestamp / 1000, timezone.utc).isoformat()
                 if isinstance(message.timestamp, int)
                 else message.timestamp or now
             )
             db.execute(
-                "INSERT INTO messages(id,conversation_id,role,content,liked,created_at) VALUES(?,?,?,?,?,?)",
-                (message.id or str(uuid.uuid4()), conversation_id, message.role, message.content,
+                """INSERT INTO messages(id,conversation_id,role,content,liked,created_at) VALUES(?,?,?,?,?,?)
+                   ON CONFLICT(id) DO UPDATE SET content=excluded.content, liked=excluded.liked,
+                       created_at=excluded.created_at
+                   WHERE messages.conversation_id=excluded.conversation_id""",
+                (message_id, conversation_id, message.role, message.content,
                  None if message.liked is None else int(message.liked), timestamp),
             )
+        if kept_ids:
+            placeholders = ",".join("?" for _ in kept_ids)
+            db.execute(
+                f"DELETE FROM messages WHERE conversation_id=? AND id NOT IN ({placeholders})",
+                [conversation_id, *kept_ids],
+            )
+        else:
+            db.execute("DELETE FROM messages WHERE conversation_id=?", (conversation_id,))
 
         db.execute("DELETE FROM conversation_documents WHERE conversation_id=?", (conversation_id,))
         db.executemany(
@@ -71,13 +87,19 @@ def persist_conversation_history(
         )
 
 
-def persist_assistant_message(conversation_id: str, message_id: str, content: str) -> str:
-    # Store an assistant reply and update the conversation's activity time.
+def persist_assistant_message(
+    conversation_id: str, message_id: str, content: str, citations: Sequence[dict] = ()
+) -> str:
+    # Store an assistant reply, its citations, and update the conversation's activity time.
     now = datetime.now(timezone.utc).isoformat()
     with get_connection() as db:
         db.execute(
             "INSERT INTO messages(id,conversation_id,role,content,created_at) VALUES(?,?,?,?,?)",
             (message_id, conversation_id, "assistant", content, now),
+        )
+        db.executemany(
+            "INSERT INTO citations(message_id,document_id,document_name,page,excerpt) VALUES(?,?,?,?,?)",
+            [(message_id, c["documentId"], c["documentName"], c["page"], c["excerpt"]) for c in citations],
         )
         db.execute("UPDATE conversations SET updated_at=? WHERE id=?", (now, conversation_id))
     return now

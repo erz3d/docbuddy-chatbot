@@ -149,6 +149,7 @@ def initialize_database() -> None:
                 document_id TEXT REFERENCES documents(id) ON DELETE SET NULL,
                 document_name TEXT NOT NULL,
                 page INTEGER NOT NULL CHECK (page > 0)
+                excerpt TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS app_settings (
@@ -171,6 +172,9 @@ def initialize_database() -> None:
             connection.execute("ALTER TABLE documents ADD COLUMN processing_error TEXT")
         if "processing_stage" not in document_columns:
             connection.execute("ALTER TABLE documents ADD COLUMN processing_stage TEXT NOT NULL DEFAULT 'ready_for_indexing'")
+        citation_columns = {row["name"] for row in connection.execute("PRAGMA table_info(citations)")}
+        if "excerpt" not in citation_columns:
+            connection.execute("ALTER TABLE citations ADD COLUMN excerpt TEXT NOT NULL DEFAULT ''")
         connection.execute("UPDATE documents SET processing_stage='failed' WHERE status='failed'")
         connection.execute("UPDATE documents SET processing_stage='extracting' WHERE status='uploading'")
         _migrate_document_files(connection)

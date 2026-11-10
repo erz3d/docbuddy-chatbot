@@ -13,6 +13,7 @@ interface PDFViewerProps {
 // Display the selected document in the browser's PDF viewer.
 export default function PDFViewer({
   document,
+  initialPage,
   onClose,
 }: PDFViewerProps) {
   if (!document) return null;
@@ -39,8 +40,8 @@ export default function PDFViewer({
       <div className="flex-1 overflow-auto bg-black/5 p-4">
         {document.id ? (
           <iframe
-            key={document.id}
-            src={document.url ?? documentFileUrl(document.id)}
+            key={`${document.id}-${initialPage}`}
+            src={`${document.url ?? documentFileUrl(document.id)}#page=${initialPage}`}
             title={document.name}
             className="h-full min-h-[500px] w-full rounded-lg bg-white"
           />

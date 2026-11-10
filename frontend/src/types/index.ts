@@ -38,6 +38,7 @@ export interface Citation {
   documentId: string;
   documentName: string;
   page: number;
+  excerpt?: string;
 }
 
 export interface ChatMessage {
