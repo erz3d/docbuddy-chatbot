@@ -6,7 +6,7 @@ from pathlib import Path
 
 from docx import Document
 from docx.oxml.ns import qn
-from docx.table import Table
+from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 from pypdf import PdfReader
 
@@ -124,15 +124,11 @@ def _heading_level(paragraph: Paragraph) -> int | None:
 
 
 def _table_text(table: Table) -> str:
-    # Render rows as "Header: value | Header: value" so each row stays self-describing.
     rows: list[list[str]] = []
-    for row in table.rows:
-        cells, seen = [], set()
-        for cell in row.cells:
-            if id(cell._tc) in seen:  # merged cells repeat the same underlying cell
-                continue
-            seen.add(id(cell._tc))
-            cells.append(" ".join(cell.text.split()))
+    # Read the raw XML rows instead of table.rows[i].cells, which raises on
+    # irregular tables (merged or missing cells) exported by some Word versions.
+    for tr in table._tbl.tr_lst:
+        cells = [" ".join(_Cell(tc, table).text.split()) for tc in tr.tc_lst]
         if any(cells):
             rows.append(cells)
     if not rows:

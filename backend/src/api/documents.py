@@ -61,8 +61,8 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
         raise HTTPException(500, "Could not save the uploaded file to disk.") from exc
     try:
         with get_connection() as db:
-            db.execute("INSERT INTO documents (id,name,size_bytes,file_path,status,processing_stage) VALUES (?,?,?,?,'uploading','extracting')",
-                       (doc_id, name, size, str(path)))
+            db.execute("INSERT INTO documents (id,name,mime_type,size_bytes,file_path,status,processing_stage) VALUES (?,?,?,?,?,'uploading','extracting')",
+                (doc_id, name, mime_type, size, str(path)))
     except Exception:
         delete_pdf_file(path)
         raise

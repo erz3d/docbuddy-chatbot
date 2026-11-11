@@ -1,15 +1,16 @@
 # Extract page text, create document indexes, and record processing results.
 
-from src.services.document_extractors import ExtractionError, extract_units
+import logging
 
 from src.database import get_connection
+from src.services.document_extractors import ExtractionError, extract_units
 from src.services.document_indexing import index_document
 
 
 def process_document(document_id: str) -> None:
-    # Extract a PDF's page text and persist either the result or a clear error.
+    # Extract a document's citable text units and persist either the result or a clear error.
     with get_connection() as db:
-        row = db.execute("SELECT file_path FROM documents WHERE id=?", (document_id,)).fetchone()
+        row = db.execute("SELECT file_path,mime_type FROM documents WHERE id=?", (document_id,)).fetchone()
         if not row:
             return
         db.execute(
@@ -24,6 +25,7 @@ def process_document(document_id: str) -> None:
         units = []
         error = str(exc)
     except Exception:
+        logging.exception("Could not extract text from document %s", document_id)
         units = []
         error = "This file could not be read. Check that it is not damaged and try again."
 
@@ -51,5 +53,5 @@ def process_document(document_id: str) -> None:
         with get_connection() as db:
             db.execute(
                 "UPDATE documents SET status='failed',processing_stage='failed',processing_error=? WHERE id=?",
-                ("Could not save the extracted text. Please try uploading the PDF again.", document_id),
+                ("Could not save the extracted text. Please try uploading the file again.", document_id),
             )
