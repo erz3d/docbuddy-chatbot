@@ -39,6 +39,7 @@ export interface Citation {
   documentName: string;
   page: number;
   excerpt?: string;
+  label?: string | null;
 }
 
 export interface ChatMessage {

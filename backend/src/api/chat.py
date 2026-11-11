@@ -27,6 +27,7 @@ class CitationOut(BaseModel):
     documentName: str
     page: int
     excerpt: str
+    label: str | None = None
 
 class ChatResponse(BaseModel):
     content: str

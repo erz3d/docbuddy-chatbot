@@ -11,18 +11,17 @@ class EmptyDocumentError(ValueError):
     """Raised when an uploaded PDF contains no bytes."""
 
 
-def document_path(document_id: str) -> Path:
-    # Build the stable on-disk path for a document's PDF.
-    return DOCUMENTS_DIR / f"{document_id}.pdf"
+def document_path(document_id: str, extension: str = ".pdf") -> Path:
+    return DOCUMENTS_DIR / f"{document_id}{extension}"
 
 
 async def save_pdf_upload(
     document_id: str,
     read_chunk: Callable[[int], Awaitable[bytes]],
+    extension: str = ".pdf",
 ) -> tuple[Path, int]:
-    # Stream an upload to a temporary file, then atomically publish it.
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
-    destination = document_path(document_id)
+    destination = document_path(document_id, extension)
     temporary = destination.with_suffix(".uploading")
     size = 0
     try:

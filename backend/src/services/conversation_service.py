@@ -98,8 +98,8 @@ def persist_assistant_message(
             (message_id, conversation_id, "assistant", content, now),
         )
         db.executemany(
-            "INSERT INTO citations(message_id,document_id,document_name,page,excerpt) VALUES(?,?,?,?,?)",
-            [(message_id, c["documentId"], c["documentName"], c["page"], c["excerpt"]) for c in citations],
+            "INSERT INTO citations(message_id,document_id,document_name,page,excerpt,label) VALUES(?,?,?,?,?,?)",
+            [(message_id, c["documentId"], c["documentName"], c["page"], c["excerpt"], c.get("label")) for c in citations],
         )
         db.execute("UPDATE conversations SET updated_at=? WHERE id=?", (now, conversation_id))
     return now

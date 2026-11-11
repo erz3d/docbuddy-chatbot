@@ -18,6 +18,14 @@ interface DocumentProcessingStatus {
   error?: string | null;
 }
 
+export const UPLOAD_ACCEPT =
+  "application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx";
+
+export const isSupportedUpload = (fileName: string) => /\.(pdf|docx)$/i.test(fileName);
+
+// Word files are shown as extracted sections instead of in the PDF viewer.
+export const isWordDocument = (fileName: string) => /\.docx$/i.test(fileName);
+
 // Pause between status checks without blocking the browser UI.
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));

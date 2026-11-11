@@ -10,8 +10,23 @@ from pydantic import BaseModel
 from src.database import get_connection
 from src.services.document_processing import process_document
 from src.services.document_storage import EmptyDocumentError, delete_pdf_file, save_pdf_upload
+from src.services.document_extractors import DOCX_MIME, PDF_MIME
 
 router = APIRouter()
+
+SUPPORTED_UPLOADS = {".pdf": PDF_MIME, ".docx": DOCX_MIME}
+
+
+def _upload_type(file: UploadFile) -> tuple[str, str]:
+    # Return the (extension, MIME type) of a supported upload or raise a clear error.
+    extension = Path(file.filename or "").suffix.lower()
+    if not extension and file.content_type == PDF_MIME:
+        extension = ".pdf"
+    if extension == ".doc":
+        raise HTTPException(415, "Legacy .doc files are not supported. Save the file as .docx and upload it again.")
+    if extension not in SUPPORTED_UPLOADS:
+        raise HTTPException(415, "Unsupported file type. Upload a PDF or a Word (.docx) document.")
+    return extension, SUPPORTED_UPLOADS[extension]
 
 
 class DocumentUpdate(BaseModel):
@@ -35,17 +50,15 @@ def list_documents():
 
 @router.post("/api/documents")
 async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    # Save an uploaded PDF and queue its text extraction.
-    if file.content_type != "application/pdf" and not (file.filename or "").lower().endswith(".pdf"):
-        raise HTTPException(415, "Unsupported file type. Upload a PDF document.")
+    extension, mime_type = _upload_type(file)
     doc_id = str(uuid.uuid4())
-    name = file.filename or "document.pdf"
+    name = file.filename or f"document{extension}"
     try:
-        path, size = await save_pdf_upload(doc_id, file.read)
+        path, size = await save_pdf_upload(doc_id, file.read, extension)
     except EmptyDocumentError as exc:
-        raise HTTPException(400, "The PDF file is empty. Choose a PDF that contains pages.") from exc
+        raise HTTPException(400, "The file is empty. Choose a document that contains text.") from exc
     except OSError as exc:
-        raise HTTPException(500, "Could not save the uploaded PDF to disk.") from exc
+        raise HTTPException(500, "Could not save the uploaded file to disk.") from exc
     try:
         with get_connection() as db:
             db.execute("INSERT INTO documents (id,name,size_bytes,file_path,status,processing_stage) VALUES (?,?,?,?,'uploading','extracting')",
@@ -59,15 +72,30 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
 
 @router.get("/api/documents/{document_id}/file")
 def get_document_file(document_id: str):
-    # Stream the stored PDF for the requested library document.
+    # Stream the stored original file for the requested library document.
     with get_connection() as db:
-        row = db.execute("SELECT name,file_path FROM documents WHERE id=?", (document_id,)).fetchone()
+        row = db.execute("SELECT name,file_path,mime_type FROM documents WHERE id=?", (document_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Document not found")
     file_path = Path(row["file_path"] or "")
     if not file_path.is_file():
-        raise HTTPException(404, "The stored PDF file is missing.")
-    return FileResponse(file_path, media_type="application/pdf", filename=row["name"], content_disposition_type="inline")
+        raise HTTPException(404, "The stored file is missing.")
+    # Browsers can display PDFs inline; Word files are downloaded instead.
+    disposition = "inline" if row["mime_type"] == PDF_MIME else "attachment"
+    return FileResponse(file_path, media_type=row["mime_type"], filename=row["name"], content_disposition_type=disposition)
+
+
+@router.get("/api/documents/{document_id}/sections")
+def get_document_sections(document_id: str):
+    # Return extracted text units (PDF pages or Word sections) for the text viewer.
+    with get_connection() as db:
+        if not db.execute("SELECT 1 FROM documents WHERE id=?", (document_id,)).fetchone():
+            raise HTTPException(404, "Document not found")
+        rows = db.execute(
+            "SELECT page_number,label,text FROM document_pages WHERE document_id=? ORDER BY page_number",
+            (document_id,),
+        ).fetchall()
+    return [{"number": r["page_number"], "label": r["label"], "text": r["text"]} for r in rows]
 
 
 @router.get("/api/documents/{document_id}/status")

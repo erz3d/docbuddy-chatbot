@@ -50,11 +50,12 @@ def get_conversation(conversation_id: str):
         ).fetchall()]
         result = []
         for m in messages:
-            citations = db.execute("SELECT document_id,document_name,page,excerpt FROM citations WHERE message_id=? ORDER BY id", (m["id"],)).fetchall()
+            citations = db.execute("SELECT document_id,document_name,page,excerpt, label FROM citations WHERE message_id=? ORDER BY id", (m["id"],)).fetchall()
             result.append({"id": m["id"], "role": m["role"], "content": m["content"],
                            "liked": None if m["liked"] is None else bool(m["liked"]),
                            "timestamp": m["created_at"],
-                           "citations": [{"documentId": c["document_id"], "documentName": c["document_name"], "page": c["page"], "excerpt": c["excerpt"]} for c in citations]})
+                           "citations": [{"documentId": c["document_id"], "documentName": c["document_name"], "page": c["page"], "excerpt": c["excerpt"]} for c in citations],
+                           "label": c["label"]},)
     return {"id": conversation_id, "messages": result, "documentIds": document_ids}
 
 

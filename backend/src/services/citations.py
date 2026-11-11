@@ -49,5 +49,6 @@ def extract_citations(answer: str, chunks: list[RetrievedChunk]) -> list[dict]:
                 "documentName": chunk.document_name,
                 "page": page,
                 "excerpt": _excerpt(chunk.text),
+                "label": chunk.label,
             })
     return citations
