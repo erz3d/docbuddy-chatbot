@@ -175,7 +175,7 @@ export default function App() {
     }));
   };
 
-  // Open a PDF at a page and remember which layout launched the viewer.
+  // Open a document at a page, section, or sheet and remember its layout.
   const openDocument = (doc: DocumentItem, page = 1, source: "chat" | "library" = "library") => {
     setViewerDocument(doc);
     setViewerPage(page);

@@ -117,7 +117,7 @@ export default function SettingsPanel({
         <section className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
           <h2 className="text-sm font-semibold">Clear chat history</h2>
           <p className="app-muted mt-1 text-xs">
-            Delete your current conversation messages. Your uploaded PDFs will
+            Delete your current conversation messages. Your uploaded documents will
             remain in your library.
           </p>
 

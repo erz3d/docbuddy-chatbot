@@ -224,7 +224,7 @@ export default function DocumentLibrary({
           <div>
             <h1 className="text-2xl font-bold">Document library</h1>
             <p className="app-muted mt-2 text-sm">
-              Manage your PDFs and organise them into collections.
+              Manage your documents and organise them into collections.
             </p>
           </div>
 
@@ -233,7 +233,7 @@ export default function DocumentLibrary({
             className="accent-button flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
           >
             <Upload size={17} />
-            Upload PDFs
+            Upload documents
           </button>
 
           <input
@@ -364,7 +364,7 @@ export default function DocumentLibrary({
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search PDFs..."
+                placeholder="Search documents..."
                 className="w-32 bg-transparent text-xs outline-none sm:w-44"
               />
             </div>
@@ -391,7 +391,7 @@ export default function DocumentLibrary({
               <FileText size={30} className="app-muted mx-auto" />
               <p className="mt-3 text-sm font-medium">No documents found</p>
               <p className="app-muted mt-1 text-xs">
-                Upload a PDF or change your search.
+                Upload a document or change your search.
               </p>
             </div>
           ) : (

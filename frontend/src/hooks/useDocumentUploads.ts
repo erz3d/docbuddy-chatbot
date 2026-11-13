@@ -34,7 +34,7 @@ export function useDocumentUploads({
     if (!files) return;
     Array.from(files).forEach((file) => {
       if (!isSupportedUpload(file.name)) {
-        window.alert(`${file.name}: unsupported file type. Please upload a PDF or a Word (.docx) document.`);
+        window.alert(`${file.name}: unsupported file type. Please upload a PDF, Word (.docx), CSV, or Excel (.xlsx) document.`);
         return;
       }
 

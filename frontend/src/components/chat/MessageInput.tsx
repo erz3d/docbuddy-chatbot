@@ -73,7 +73,7 @@ export default function MessageInput({
 
           <button
             onClick={() => fileInput.current?.click()}
-            title="Attach PDF"
+            title="Attach document"
             className="app-muted app-surface-hover rounded-lg p-2"
           >
             <Paperclip size={18} />
@@ -93,7 +93,7 @@ export default function MessageInput({
               <div className="app-surface absolute bottom-12 left-0 z-30 max-h-64 w-64 overflow-y-auto rounded-xl border p-2 shadow-xl">
                 {documents.length === 0 ? (
                   <p className="app-muted p-3 text-xs">
-                    Upload a PDF to get started.
+                    Upload a document to get started.
                   </p>
                 ) : (
                   documents.map((doc) => (

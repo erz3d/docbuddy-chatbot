@@ -21,6 +21,7 @@ class RetrievedChunk:
     text: str
     score: float
     label: str | None = None
+    mime_type: str = "application/pdf"
 
 
 async def retrieve_relevant_chunks(question: str, document_ids: list[str]) -> list[RetrievedChunk]:
@@ -32,11 +33,11 @@ async def retrieve_relevant_chunks(question: str, document_ids: list[str]) -> li
     placeholders = ",".join("?" for _ in selected_ids)
     with get_connection() as db:
         rows = db.execute(
-            f"""SELECT c.document_id,d.name,c.page_number,c.text,c.embedding,p.label
+            f"""SELECT c.document_id,d.name,d.mime_type,c.page_number,c.text,c.embedding,p.label
                 FROM document_chunks c JOIN documents d ON d.id=c.document_id
                 LEFT JOIN document_pages p
                   ON p.document_id=c.document_id AND p.page_number=c.page_number
-                WHERE d.status='ready' AND c.embedding_model=?
+                WHERE d.status='ready' AND c.embedding_model=? AND COALESCE(p.selected,1)=1
                   AND c.document_id IN ({placeholders})""",
             [EMBEDDING_MODEL, *selected_ids],
         ).fetchall()
@@ -72,6 +73,7 @@ async def retrieve_relevant_chunks(question: str, document_ids: list[str]) -> li
                 text=row["text"],
                 score=score,
                 label=row["label"],
+                mime_type=row["mime_type"],
             )
         )
 
@@ -83,7 +85,9 @@ def format_retrieved_context(chunks: list[RetrievedChunk]) -> str:
 
 
 def _format_chunk(chunk: RetrievedChunk) -> str:
-    # Word sections are cited by section number; PDF pages by page number.
+    # Preserve the source type and sheet/section label for answer citations.
+    if chunk.mime_type in {"text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}:
+        return f'[{chunk.document_name} | sheet "{chunk.label or "Sheet"}"]\n{chunk.text}'
     if chunk.label:
         return f"[{chunk.document_name} | section {chunk.page_number}]\nSection: {chunk.label}\n{chunk.text}"
     return f"[{chunk.document_name} | page {chunk.page_number}]\n{chunk.text}"

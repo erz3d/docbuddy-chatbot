@@ -94,7 +94,7 @@ def index_document(document_id: str) -> None:
         logging.exception("Could not build document search index for %s", document_id)
         _mark_indexing_failed(
             document_id,
-            "Could not index this PDF. Check OpenAI settings and connectivity, then upload it again.",
+            "Could not index this document. Check OpenAI settings and connectivity, then upload it again.",
         )
 
 

@@ -1,6 +1,10 @@
 # Extract citable text units from PDF and Word files.
 
+import csv
+import io
+import json
 import re
+from datetime import date, datetime, time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,6 +16,9 @@ from pypdf import PdfReader
 
 PDF_MIME = "application/pdf"
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+CSV_MIME = "text/csv"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+SPREADSHEET_MIMES = {CSV_MIME, XLSX_MIME}
 MAX_SECTION_CHARS = 6000
 
 _HEADING_STYLE = re.compile(r"^(?:heading|titre)\s*(\d+)$", re.IGNORECASE)
@@ -27,13 +34,120 @@ class ExtractedUnit:
 
     text: str
     label: str | None = None
+    structured_data: str | None = None
 
 
-def extract_units(path: str | Path, mime_type: str) -> list[ExtractedUnit]:
+def extract_units(path: str | Path, mime_type: str, source_name: str | None = None) -> list[ExtractedUnit]:
     # Pick the extractor matching the stored file type.
     if mime_type == DOCX_MIME:
         return extract_docx_sections(path)
+    if mime_type == CSV_MIME:
+        return extract_csv_sheet(path, source_name)
+    if mime_type == XLSX_MIME:
+        return extract_xlsx_sheets(path)
     return extract_pdf_pages(path)
+
+
+def extract_csv_sheet(path: str | Path, source_name: str | None = None) -> list[ExtractedUnit]:
+    # Treat a CSV as one named sheet and infer only unambiguous numeric values.
+    try:
+        raw = Path(path).read_bytes()
+        try:
+            content = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            try:
+                content = raw.decode("utf-16")
+            except UnicodeDecodeError:
+                content = raw.decode("cp1252")
+        sample = content[:8192]
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",\t;|")
+        except csv.Error:
+            dialect = csv.excel
+        rows = list(csv.reader(io.StringIO(content, newline=""), dialect))
+    except Exception as exc:
+        raise ExtractionError("This CSV file could not be read. Save it as UTF-8 CSV and try again.") from exc
+    if not rows:
+        raise ExtractionError("This CSV file contains no rows.")
+    headers = [value.strip() for value in rows[0]]
+    values = [[_infer_csv_value(value) for value in row] for row in rows[1:]]
+    data = {"headers": headers, "rows": values, "rowNumbers": list(range(2, len(values) + 2))}
+    label = Path(source_name or path).stem
+    return [ExtractedUnit(_sheet_search_text(label, headers, values, data["rowNumbers"]), label, json.dumps(data, ensure_ascii=False))]
+
+
+def extract_xlsx_sheets(path: str | Path) -> list[ExtractedUnit]:
+    # Read workbook cell values without changing their native numeric/string types.
+    try:
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(str(path), read_only=True, data_only=False)
+        units: list[ExtractedUnit] = []
+        for worksheet in workbook.worksheets:
+            values = list(worksheet.iter_rows(values_only=True))
+            if values:
+                headers = [_json_cell(value) for value in values[0]]
+                headers = ["" if value is None else str(value) for value in headers]
+                rows = [[_json_cell(value) for value in row] for row in values[1:]]
+                row_numbers = list(range(2, len(rows) + 2))
+            else:
+                headers, rows, row_numbers = [], [], []
+            data = {"headers": headers, "rows": rows, "rowNumbers": row_numbers}
+            units.append(ExtractedUnit(
+                _sheet_search_text(worksheet.title, headers, rows, row_numbers),
+                worksheet.title,
+                json.dumps(data, ensure_ascii=False),
+            ))
+        workbook.close()
+    except Exception as exc:
+        raise ExtractionError("This spreadsheet is damaged or unreadable. Save it as a standard .xlsx file and try again.") from exc
+    if not units:
+        raise ExtractionError("This spreadsheet contains no worksheets.")
+    if not any(unit.text.strip() for unit in units):
+        raise ExtractionError("No cell values were found in this spreadsheet.")
+    return units
+
+
+def _json_cell(value):
+    # Convert Excel date/time values to ISO strings and preserve booleans and numbers.
+    if isinstance(value, (datetime, date, time)):
+        return value.isoformat()
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _infer_csv_value(value: str):
+    # CSV has no cell types; retain leading-zero identifiers as strings.
+    stripped = value.strip()
+    if not stripped:
+        return ""
+    if re.fullmatch(r"[+-]?\d+", stripped) and not re.fullmatch(r"[+-]?0\d+", stripped):
+        try:
+            return int(stripped)
+        except ValueError:
+            return value
+    if re.fullmatch(r"[+-]?(?:\d+\.\d*|\d*\.\d+|\d+)(?:[eE][+-]?\d+)?", stripped):
+        try:
+            return float(stripped) if any(char in stripped for char in ".eE") else int(stripped)
+        except ValueError:
+            return value
+    return value
+
+
+def _sheet_search_text(name: str, headers: list[str], rows: list[list], row_numbers: list[int]) -> str:
+    # Include headers and row numbers in the indexed text so retrieved excerpts retain context.
+    lines = [f"Worksheet: {name}"]
+    for row_number, row in zip(row_numbers, rows):
+        cells = []
+        for index, value in enumerate(row):
+            if value is None or value == "":
+                continue
+            header = headers[index] if index < len(headers) and headers[index] else f"Column {index + 1}"
+            cells.append(f"{header}: {value}")
+        if cells:
+            lines.append(f"Row {row_number}: " + " | ".join(cells))
+    return "\n".join(lines)
 
 
 def extract_pdf_pages(path: str | Path) -> list[ExtractedUnit]:
