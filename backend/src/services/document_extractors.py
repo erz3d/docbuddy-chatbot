@@ -40,6 +40,9 @@ class ExtractedUnit:
     text: str
     label: str | None = None
     structured_data: str | None = None
+    ocr: bool = False
+    confidence: float | None = None
+    low_quality: bool = False
 
 
 def extract_units(path: str | Path, mime_type: str, source_name: str | None = None) -> list[ExtractedUnit]:

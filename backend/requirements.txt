@@ -7,3 +7,7 @@ pypdf
 python-multipart
 python-docx
 openpyxl
+pandas
+PyMuPDF
+pytesseract
+Pillow

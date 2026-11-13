@@ -87,9 +87,7 @@ def persist_conversation_history(
         )
 
 
-def persist_assistant_message(
-    conversation_id: str, message_id: str, content: str, citations: Sequence[dict] = ()
-) -> str:
+def persist_assistant_message( conversation_id: str, message_id: str, content: str, citations: Sequence[dict] = () , executions: Sequence[dict] = (), ) -> str:
     # Store an assistant reply, its citations, and update the conversation's activity time.
     now = datetime.now(timezone.utc).isoformat()
     with get_connection() as db:
@@ -102,4 +100,8 @@ def persist_assistant_message(
             [(message_id, c["documentId"], c["documentName"], c["page"], c["excerpt"], c.get("label")) for c in citations],
         )
         db.execute("UPDATE conversations SET updated_at=? WHERE id=?", (now, conversation_id))
+        db.executemany(
+            "INSERT INTO python_executions(message_id,code,stdout,stderr,exit_code,timed_out) VALUES(?,?,?,?,?,?)",
+            [(message_id, e["code"], e["stdout"], e["stderr"], e["exitCode"], int(e["timedOut"])) for e in executions],
+        )
     return now

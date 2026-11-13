@@ -45,11 +45,20 @@ export interface Citation {
   label?: string | null;
 }
 
+export interface PythonExecution {
+  code: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  timedOut: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   citations?: Citation[];
+  pythonExecutions?: PythonExecution[];
   liked?: boolean | null;
   timestamp: number;
 }
