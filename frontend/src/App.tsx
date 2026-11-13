@@ -264,6 +264,7 @@ export default function App() {
         role: "assistant",
         content,
         citations: result.citations ?? [],
+        pythonExecutions: result.pythonExecutions ?? [],
         timestamp: Date.parse(result.timestamp),
       };
       setMessages((current) => {

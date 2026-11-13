@@ -22,6 +22,7 @@ import type {
 } from "../../types";
 import { isSpreadsheetDocument } from "../../services/documentService";
 import MessageInput from "./MessageInput";
+import PythonExecutionBlock from "./PythonExecutionBlock";
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -265,7 +266,9 @@ export default function ChatWindow({
                     >
                       {message.content}
                     </div>
-
+                    {message.pythonExecutions?.map((execution, index) => (
+                      <PythonExecutionBlock key={`${message.id}-run-${index}`} execution={execution} />
+                    ))}
                     {message.citations && message.citations.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {message.citations.map((citation, index) => (

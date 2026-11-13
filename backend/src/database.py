@@ -163,6 +163,16 @@ def initialize_database() -> None:
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS python_executions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                code TEXT NOT NULL,
+                stdout TEXT NOT NULL DEFAULT '',
+                stderr TEXT NOT NULL DEFAULT '',
+                exit_code INTEGER,
+                timed_out INTEGER NOT NULL DEFAULT 0
+            );
             """
         )
         conversation_columns = {row["name"] for row in connection.execute("PRAGMA table_info(conversations)")}
