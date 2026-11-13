@@ -13,5 +13,5 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-// Return the backend URL used to display or download a stored PDF.
+// Return the backend URL used to display or download a stored document.
 export const documentFileUrl = (id: string) => `${API_URL}/api/documents/${id}/file`;

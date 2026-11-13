@@ -1,10 +1,11 @@
-// Embed a stored PDF and provide close and page-navigation controls.
+// Display a stored PDF, Word document, or spreadsheet with close controls.
 
 import { X, FileText } from "lucide-react";
 import type { DocumentItem } from "../../types";
 import { documentFileUrl } from "../../services/api";
-import { isWordDocument } from "../../services/documentService";
+import { isSpreadsheetDocument, isWordDocument } from "../../services/documentService";
 import SectionViewer from "./SectionViewer";
+import SpreadsheetViewer from "./SpreadsheetViewer";
 
 interface PDFViewerProps {
   document: DocumentItem | null;
@@ -12,7 +13,7 @@ interface PDFViewerProps {
   onClose: () => void;
 }
 
-// Display the selected document in the browser's PDF viewer.
+// Display the selected document in its matching preview.
 export default function PDFViewer({
   document,
   initialPage,
@@ -40,7 +41,13 @@ export default function PDFViewer({
       </header>
 
       <div className="flex-1 overflow-auto bg-black/5 p-4">
-        {isWordDocument(document.name) ? (
+        {isSpreadsheetDocument(document.name) ? (
+          <SpreadsheetViewer
+            key={document.backendId ?? document.id}
+            documentId={document.backendId ?? document.id}
+            initialSheet={initialPage}
+          />
+        ) : isWordDocument(document.name) ? (
           <SectionViewer
             key={document.backendId ?? document.id}
             documentId={document.backendId ?? document.id}

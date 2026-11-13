@@ -6,6 +6,4 @@ pywebview
 pypdf 
 python-multipart
 python-docx
-pymupdf
-pytesseract
-pillow
+openpyxl
