@@ -45,8 +45,8 @@ def process_document(document_id: str) -> None:
         with get_connection() as db:
             db.execute("DELETE FROM document_pages WHERE document_id=?", (document_id,))
             db.executemany(
-                "INSERT INTO document_pages(document_id,page_number,text,label,structured_data,selected) VALUES(?,?,?,?,?,1)",
-                [(document_id, number, unit.text, unit.label, unit.structured_data) for number, unit in enumerate(units, 1)],
+                "INSERT INTO document_pages(document_id,page_number,text,label,structured_data,selected,ocr,ocr_confidence,low_quality) VALUES(?,?,?,?,?,1,?,?,?)",
+                [(document_id, number, unit.text, unit.label, unit.structured_data, int(unit.ocr), unit.confidence, int(unit.low_quality)) for number, unit in enumerate(units, 1)],
             )
             db.execute(
                 "UPDATE documents SET status='uploading',processing_stage='ready_for_indexing',processing_error=NULL WHERE id=?",
