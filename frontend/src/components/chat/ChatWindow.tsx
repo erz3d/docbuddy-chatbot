@@ -20,6 +20,7 @@ import type {
   DocumentItem,
   Citation,
 } from "../../types";
+import { isSpreadsheetDocument } from "../../services/documentService";
 import MessageInput from "./MessageInput";
 
 interface ChatWindowProps {
@@ -277,7 +278,9 @@ export default function ChatWindow({
                             <FileText size={12} />
                             <span className="max-w-[320px] truncate">
                               {citation.documentName},{" "}
-                              {citation.label ? `§ ${citation.label}` : `p. ${citation.page}`}
+                              {citation.label
+                                ? isSpreadsheetDocument(citation.documentName) ? `Sheet ${citation.label}` : `§ ${citation.label}`
+                                : `p. ${citation.page}`}
                             </span>
                           </button>
                         ))}
@@ -364,7 +367,7 @@ export default function ChatWindow({
           disabled={isGenerating}
         />
         <p className="app-muted mt-3 text-center text-[10px]">
-          Answers are generated from your selected PDFs and chat history.
+          Answers are generated from your selected documents and chat history.
         </p>
       </div>
     </div>

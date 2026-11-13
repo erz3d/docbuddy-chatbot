@@ -6,3 +6,4 @@ pywebview
 pypdf 
 python-multipart
 python-docx
+openpyxl

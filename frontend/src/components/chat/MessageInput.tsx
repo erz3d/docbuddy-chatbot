@@ -73,7 +73,7 @@ export default function MessageInput({
 
           <button
             onClick={() => fileInput.current?.click()}
-            title="Attach PDF"
+            title="Attach document"
             className="app-muted app-surface-hover rounded-lg p-2"
           >
             <Paperclip size={18} />
@@ -93,7 +93,7 @@ export default function MessageInput({
               <div className="app-surface absolute bottom-12 left-0 z-30 max-h-64 w-64 overflow-y-auto rounded-xl border p-2 shadow-xl">
                 {documents.length === 0 ? (
                   <p className="app-muted p-3 text-xs">
-                    Upload a PDF to get started.
+                    Upload a document to get started.
                   </p>
                 ) : (
                   documents.map((doc) => (
@@ -111,7 +111,7 @@ export default function MessageInput({
                       </span>
                       <span className="min-w-0 flex-1 text-left">
                         <span className="block truncate">{doc.name}</span>
-                        {doc.error ? <span className="block truncate text-[10px] text-red-400">{doc.error}</span> : doc.stage === "extracting" ? <span className="app-muted block text-[10px]">Extracting text…</span> : null}
+                        {doc.error ? <span className="block truncate text-[10px] text-red-400">{doc.error}</span> : doc.stage === "extracting" ? <span className="app-muted block text-[10px]">Extracting text…</span> : doc.stage === "ocr" ? <span className="app-muted block text-[10px]">Running OCR…</span> : null}
                       </span>
                     </button>
                   ))

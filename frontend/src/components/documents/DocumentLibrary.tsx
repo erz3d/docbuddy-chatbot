@@ -48,8 +48,16 @@ function documentStatusLabel(document: DocumentItem) {
   if (document.status === "failed" || document.stage === "failed") return "Failed";
   if (document.stage === "uploading") return "Uploading";
   if (document.stage === "extracting") return "Extracting text";
+  if (document.stage === "ocr") return "Running OCR";
   if (document.stage === "ready_for_indexing" || document.stage === "indexing") return "Indexing";
   return "Ready";
+}
+
+function lowQualityWarning(document: DocumentItem) {
+  // Explain which OCR pages may contain unreliable text, so answers from them can be checked.
+  const pages = document.lowQualityPages ?? [];
+  if (pages.length === 0) return null;
+  return `Some pages may be unreliable (OCR): p. ${pages.join(", ")}`;
 }
 
 // Render collection management and document browsing actions.
@@ -183,6 +191,7 @@ export default function DocumentLibrary({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{doc.name}</p>
                     <p className="app-muted mt-1 text-xs">{(doc.size / 1024 / 1024).toFixed(2)} MB · {documentStatusLabel(doc)}</p>
+                    {lowQualityWarning(doc) && <p className="mt-1 text-xs text-amber-400">{lowQualityWarning(doc)}</p>}
                   </div>
                   {doc.error && <p className="w-full pl-8 text-xs text-red-400" title={doc.error}>{doc.error}</p>}
                   {renderDocumentActions(doc, true)}
@@ -224,7 +233,7 @@ export default function DocumentLibrary({
           <div>
             <h1 className="text-2xl font-bold">Document library</h1>
             <p className="app-muted mt-2 text-sm">
-              Manage your PDFs and organise them into collections.
+              Manage your documents and organise them into collections.
             </p>
           </div>
 
@@ -233,7 +242,7 @@ export default function DocumentLibrary({
             className="accent-button flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
           >
             <Upload size={17} />
-            Upload PDFs
+            Upload documents
           </button>
 
           <input
@@ -364,7 +373,7 @@ export default function DocumentLibrary({
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search PDFs..."
+                placeholder="Search documents..."
                 className="w-32 bg-transparent text-xs outline-none sm:w-44"
               />
             </div>
@@ -391,7 +400,7 @@ export default function DocumentLibrary({
               <FileText size={30} className="app-muted mx-auto" />
               <p className="mt-3 text-sm font-medium">No documents found</p>
               <p className="app-muted mt-1 text-xs">
-                Upload a PDF or change your search.
+                Upload a document or change your search.
               </p>
             </div>
           ) : (
@@ -411,6 +420,7 @@ export default function DocumentLibrary({
                     {documentStatusLabel(doc)}
                   </p>
                   {doc.error && <p className="mt-1 text-xs text-red-400" title={doc.error}>{doc.error}</p>}
+                  {lowQualityWarning(doc) && <p className="mt-1 text-xs text-amber-400">{lowQualityWarning(doc)}</p>}
                 </div>
 
                 {renderDocumentActions(doc)}

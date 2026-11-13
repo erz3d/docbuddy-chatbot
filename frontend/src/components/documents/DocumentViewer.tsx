@@ -1,23 +1,24 @@
-// Embed a stored PDF and provide close and page-navigation controls.
+// Display a stored document in its format-specific preview.
 
 import { X, FileText } from "lucide-react";
 import type { DocumentItem } from "../../types";
 import { documentFileUrl } from "../../services/api";
-import { isWordDocument } from "../../services/documentService";
+import { isSpreadsheetDocument, isWordDocument } from "../../services/documentService";
 import SectionViewer from "./SectionViewer";
+import SpreadsheetViewer from "./SpreadsheetViewer";
 
-interface PDFViewerProps {
+interface DocumentViewerProps {
   document: DocumentItem | null;
-  initialPage: number;
+  initialUnit: number;
   onClose: () => void;
 }
 
-// Display the selected document in the browser's PDF viewer.
-export default function PDFViewer({
+// Display the selected document in its matching preview.
+export default function DocumentViewer({
   document,
-  initialPage,
+  initialUnit,
   onClose,
-}: PDFViewerProps) {
+}: DocumentViewerProps) {
   if (!document) return null;
 
   return (
@@ -40,16 +41,22 @@ export default function PDFViewer({
       </header>
 
       <div className="flex-1 overflow-auto bg-black/5 p-4">
-        {isWordDocument(document.name) ? (
+        {isSpreadsheetDocument(document.name) ? (
+          <SpreadsheetViewer
+            key={document.backendId ?? document.id}
+            documentId={document.backendId ?? document.id}
+            initialSheet={initialUnit}
+          />
+        ) : isWordDocument(document.name) ? (
           <SectionViewer
             key={document.backendId ?? document.id}
             documentId={document.backendId ?? document.id}
-            initialSection={initialPage}
+            initialSection={initialUnit}
           />
         ) : document.id ? (
           <iframe
-            key={`${document.id}-${initialPage}`}
-            src={`${document.url ?? documentFileUrl(document.id)}#page=${initialPage}`}
+            key={`${document.id}-${initialUnit}`}
+            src={`${document.url ?? documentFileUrl(document.id)}#page=${initialUnit}`}
             title={document.name}
             className="h-full min-h-[500px] w-full rounded-lg bg-white"
           />
@@ -58,10 +65,10 @@ export default function PDFViewer({
             <div className="app-surface max-w-sm rounded-2xl border p-8 text-center">
               <FileText size={42} className="mx-auto text-red-400" />
               <h3 className="mt-4 text-sm font-semibold">
-                PDF preview unavailable
+                Document preview unavailable
               </h3>
               <p className="app-muted mt-2 text-xs leading-5">
-                The PDF preview could not be loaded.
+                The document preview could not be loaded.
               </p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-// Upload PDF files and poll the backend until text extraction finishes.
+// Upload supported documents and poll the backend until processing finishes.
 
 import { api } from "./api";
 import type { DocumentProcessingStage } from "../types";
@@ -16,21 +16,24 @@ interface DocumentProcessingStatus {
   status: UploadedDocument["status"];
   stage: DocumentProcessingStage;
   error?: string | null;
+  lowQualityPages?: number[];
 }
 
 export const UPLOAD_ACCEPT =
-  "application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx";
+  "application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,text/csv,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx";
 
-export const isSupportedUpload = (fileName: string) => /\.(pdf|docx)$/i.test(fileName);
+export const isSupportedUpload = (fileName: string) => /\.(pdf|docx|csv|xlsx)$/i.test(fileName);
 
-// Word files are shown as extracted sections instead of in the PDF viewer.
+// Word and spreadsheet files use extracted-data viewers.
 export const isWordDocument = (fileName: string) => /\.docx$/i.test(fileName);
+
+export const isSpreadsheetDocument = (fileName: string) => /\.(csv|xlsx)$/i.test(fileName);
 
 // Pause between status checks without blocking the browser UI.
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 
-// Upload a PDF as multipart form data to the document API.
+// Upload a document as multipart form data to the document API.
 export async function uploadDocument(file: File): Promise<UploadedDocument> {
   const formData = new FormData();
   formData.append("file", file);
@@ -46,12 +49,14 @@ export async function waitForDocumentProcessing(
   documentId: string,
   onStatus?: (status: DocumentProcessingStatus["status"], stage: DocumentProcessingStage, error?: string | null) => void,
 ): Promise<void> {
-  for (let attempt = 0; attempt < 600; attempt += 1) {
+  // 3600 checks at 500 ms is about 30 minutes, enough for OCR of long scanned PDFs.
+  const maxAttempts = 3600;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     let result: DocumentProcessingStatus;
     try {
       result = await api<DocumentProcessingStatus>(`/api/documents/${documentId}/status`);
     } catch (error) {
-      if (attempt === 599) throw error;
+      if (attempt === maxAttempts - 1) throw error;
       await delay(500);
       continue;
     }

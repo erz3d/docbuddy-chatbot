@@ -1,5 +1,6 @@
 # Handle document uploads, processing status, file delivery, and collections.
 
+import json
 import uuid
 from pathlib import Path
 
@@ -10,11 +11,11 @@ from pydantic import BaseModel
 from src.database import get_connection
 from src.services.document_processing import process_document
 from src.services.document_storage import EmptyDocumentError, delete_pdf_file, save_pdf_upload
-from src.services.document_extractors import DOCX_MIME, PDF_MIME
+from src.services.document_extractors import CSV_MIME, DOCX_MIME, PDF_MIME, SPREADSHEET_MIMES, XLSX_MIME
 
 router = APIRouter()
 
-SUPPORTED_UPLOADS = {".pdf": PDF_MIME, ".docx": DOCX_MIME}
+SUPPORTED_UPLOADS = {".pdf": PDF_MIME, ".docx": DOCX_MIME, ".csv": CSV_MIME, ".xlsx": XLSX_MIME}
 
 
 def _upload_type(file: UploadFile) -> tuple[str, str]:
@@ -25,12 +26,16 @@ def _upload_type(file: UploadFile) -> tuple[str, str]:
     if extension == ".doc":
         raise HTTPException(415, "Legacy .doc files are not supported. Save the file as .docx and upload it again.")
     if extension not in SUPPORTED_UPLOADS:
-        raise HTTPException(415, "Unsupported file type. Upload a PDF or a Word (.docx) document.")
+        raise HTTPException(415, "Unsupported file type. Upload a PDF, Word (.docx), CSV, or Excel (.xlsx) document.")
     return extension, SUPPORTED_UPLOADS[extension]
 
 
 class DocumentUpdate(BaseModel):
     collectionId: str | None
+
+
+class SheetSelection(BaseModel):
+    selectedNumbers: list[int]
 
 
 @router.get("/api/documents")
@@ -39,13 +44,24 @@ def list_documents():
     with get_connection() as db:
         rows = db.execute("SELECT id,name,size_bytes,collection_id,status,processing_stage,processing_error,added_at FROM documents ORDER BY added_at DESC").fetchall()
         memberships = db.execute("SELECT document_id, collection_id FROM document_collections").fetchall()
+        low_quality = _low_quality_pages_by_document(db)
     by_document: dict[str, list[str]] = {}
     for membership in memberships:
         by_document.setdefault(membership["document_id"], []).append(membership["collection_id"])
     return [{"id": r["id"], "name": r["name"], "size": r["size_bytes"],
              "collectionId": r["collection_id"], "collectionIds": by_document.get(r["id"], []), "status": r["status"],
              "stage": r["processing_stage"], "error": r["processing_error"],
+             "lowQualityPages": low_quality.get(r["id"], []),
              "addedAt": r["added_at"]} for r in rows]
+
+
+def _low_quality_pages_by_document(db) -> dict[str, list[int]]:
+    # Page numbers whose text was OCR'd with low confidence or could not be read, per document.
+    rows = db.execute("SELECT document_id,page_number FROM document_pages WHERE low_quality=1 ORDER BY page_number").fetchall()
+    pages: dict[str, list[int]] = {}
+    for row in rows:
+        pages.setdefault(row["document_id"], []).append(row["page_number"])
+    return pages
 
 
 @router.post("/api/documents")
@@ -80,7 +96,7 @@ def get_document_file(document_id: str):
     file_path = Path(row["file_path"] or "")
     if not file_path.is_file():
         raise HTTPException(404, "The stored file is missing.")
-    # Browsers can display PDFs inline; Word files are downloaded instead.
+    # Browsers can display PDFs inline; other original files are downloaded.
     disposition = "inline" if row["mime_type"] == PDF_MIME else "attachment"
     return FileResponse(file_path, media_type=row["mime_type"], filename=row["name"], content_disposition_type=disposition)
 
@@ -92,10 +108,52 @@ def get_document_sections(document_id: str):
         if not db.execute("SELECT 1 FROM documents WHERE id=?", (document_id,)).fetchone():
             raise HTTPException(404, "Document not found")
         rows = db.execute(
-            "SELECT page_number,label,text FROM document_pages WHERE document_id=? ORDER BY page_number",
+            "SELECT page_number,label,text,ocr,ocr_confidence,low_quality FROM document_pages WHERE document_id=? ORDER BY page_number",
             (document_id,),
         ).fetchall()
-    return [{"number": r["page_number"], "label": r["label"], "text": r["text"]} for r in rows]
+    return [{"number": r["page_number"], "label": r["label"], "text": r["text"],
+             "ocr": bool(r["ocr"]), "confidence": r["ocr_confidence"], "lowQuality": bool(r["low_quality"])} for r in rows]
+
+
+@router.get("/api/documents/{document_id}/sheets")
+def get_document_sheets(document_id: str):
+    # Return typed sheet data and current RAG selection for spreadsheet previews.
+    with get_connection() as db:
+        document = db.execute("SELECT mime_type FROM documents WHERE id=?", (document_id,)).fetchone()
+        if not document:
+            raise HTTPException(404, "Document not found")
+        if document["mime_type"] not in SPREADSHEET_MIMES:
+            raise HTTPException(415, "This document is not a spreadsheet.")
+        rows = db.execute(
+            "SELECT page_number,label,structured_data,selected FROM document_pages WHERE document_id=? ORDER BY page_number",
+            (document_id,),
+        ).fetchall()
+    return [{"number": row["page_number"], "name": row["label"],
+             "data": json.loads(row["structured_data"] or "{}"),
+             "selected": bool(row["selected"])} for row in rows]
+
+
+@router.put("/api/documents/{document_id}/sheets")
+def update_document_sheets(document_id: str, payload: SheetSelection):
+    # Persist the sheets included when retrieval searches this document.
+    selected = set(payload.selectedNumbers)
+    with get_connection() as db:
+        document = db.execute("SELECT mime_type FROM documents WHERE id=?", (document_id,)).fetchone()
+        if not document:
+            raise HTTPException(404, "Document not found")
+        if document["mime_type"] not in SPREADSHEET_MIMES:
+            raise HTTPException(415, "This document is not a spreadsheet.")
+        numbers = {row["page_number"] for row in db.execute(
+            "SELECT page_number FROM document_pages WHERE document_id=?", (document_id,)
+        ).fetchall()}
+        if not selected.issubset(numbers):
+            raise HTTPException(400, "One or more selected sheets do not exist.")
+        db.execute("UPDATE document_pages SET selected=0 WHERE document_id=?", (document_id,))
+        db.executemany(
+            "UPDATE document_pages SET selected=1 WHERE document_id=? AND page_number=?",
+            [(document_id, number) for number in selected],
+        )
+    return {"ok": True}
 
 
 @router.get("/api/documents/{document_id}/status")
@@ -103,9 +161,14 @@ def get_document_status(document_id: str):
     # Return the current extraction status and any user-facing error.
     with get_connection() as db:
         row = db.execute("SELECT status,processing_stage,processing_error FROM documents WHERE id=?", (document_id,)).fetchone()
+        low_quality = db.execute(
+            "SELECT page_number FROM document_pages WHERE document_id=? AND low_quality=1 ORDER BY page_number",
+            (document_id,),
+        ).fetchall()
     if not row:
         raise HTTPException(404, "Document not found")
-    return {"status": row["status"], "stage": row["processing_stage"], "error": row["processing_error"]}
+    return {"status": row["status"], "stage": row["processing_stage"], "error": row["processing_error"],
+            "lowQualityPages": [r["page_number"] for r in low_quality]}
 
 
 @router.patch("/api/documents/{document_id}")

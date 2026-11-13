@@ -12,7 +12,7 @@ import ArchiveView from "./components/layout/ArchiveView";
 import ChatHistoryView from "./components/layout/ChatHistoryView";
 import ChatWindow from "./components/chat/ChatWindow";
 import DocumentLibrary from "./components/documents/DocumentLibrary";
-import PDFViewer from "./components/pdf/PDFViewer";
+import DocumentViewer from "./components/documents/DocumentViewer";
 import SettingsPanel from "./components/settings/SettingsPanel";
 
 import type {
@@ -56,7 +56,7 @@ export default function App() {
   const [viewerDocument, setViewerDocument] =
     useState<DocumentItem | null>(null);
   const [viewerSource, setViewerSource] = useState<"chat" | "library">("library");
-  const [viewerPage, setViewerPage] = useState(1);
+  const [viewerUnit, setViewerUnit] = useState(1);
 
   const abortRef = useRef<AbortController | null>(null);
   const pendingUploadsRef = useRef<Map<string, File>>(new Map());
@@ -175,10 +175,10 @@ export default function App() {
     }));
   };
 
-  // Open a PDF at a page and remember which layout launched the viewer.
-  const openDocument = (doc: DocumentItem, page = 1, source: "chat" | "library" = "library") => {
+  // Open a document at a page, section, or sheet and remember its layout.
+  const openDocument = (doc: DocumentItem, unit = 1, source: "chat" | "library" = "library") => {
     setViewerDocument(doc);
-    setViewerPage(page);
+    setViewerUnit(unit);
     setViewerSource(source);
   };
 
@@ -490,9 +490,9 @@ export default function App() {
 
         <div className="flex min-h-0 flex-1">
           {viewerDocument && viewerSource === "library" ? (
-            <PDFViewer
+            <DocumentViewer
               document={viewerDocument}
-              initialPage={viewerPage}
+              initialUnit={viewerUnit}
               onClose={() => setViewerDocument(null)}
             />
           ) : (
@@ -522,7 +522,7 @@ export default function App() {
               </div>
               {viewerDocument && viewerSource === "chat" && (
                 <div className="flex min-w-0 flex-1 flex-col lg:max-w-[48%]">
-                  <PDFViewer document={viewerDocument} initialPage={viewerPage} onClose={() => setViewerDocument(null)} />
+                  <DocumentViewer document={viewerDocument} initialUnit={viewerUnit} onClose={() => setViewerDocument(null)} />
                 </div>
               )}
             </>

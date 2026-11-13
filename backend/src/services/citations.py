@@ -11,6 +11,7 @@ MAX_RANGE = 10
 _REFERENCE = re.compile(r"\[([^\[\]|]+?)\s*\|\s*([^\[\]]+?)\]")
 _RANGE = re.compile(r"(\d+)\s*[-–]\s*(\d+)")
 _NUMBER = re.compile(r"\d+")
+_SHEET = re.compile(r'^sheet\s+[\"\'](.+?)[\"\']$', re.IGNORECASE)
 
 
 def _pages(text: str) -> list[int]:
@@ -39,8 +40,15 @@ def extract_citations(answer: str, chunks: list[RetrievedChunk]) -> list[dict]:
     seen: set[tuple[str, int]] = set()
     for match in _REFERENCE.finditer(answer):
         name = match.group(1).strip().casefold()
-        for page in _pages(match.group(2)):
-            chunk = best_chunk.get((name, page))
+        reference = match.group(2).strip()
+        sheet_match = _SHEET.match(reference)
+        if sheet_match:
+            sheet_name = sheet_match.group(1).strip().casefold()
+            matches = [chunk for chunk in chunks if chunk.document_name.casefold() == name and (chunk.label or "").casefold() == sheet_name]
+        else:
+            matches = [best_chunk[(name, page)] for page in _pages(reference) if (name, page) in best_chunk]
+        for chunk in matches:
+            page = chunk.page_number
             if chunk is None or (chunk.document_id, page) in seen:
                 continue
             seen.add((chunk.document_id, page))
