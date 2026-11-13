@@ -20,6 +20,8 @@ Use this note to continue work on DocBuddy in a fresh context. The repository is
 - `document_pages` contains extracted text by page. `document_chunks` stores overlapping page-aware chunks and their OpenAI embeddings in SQLite. Retrieval ranks chunks by cosine similarity and sends only the top matches from documents selected in the current chat.
 - The embedding model defaults to `text-embedding-3-small` and can be overridden with `OPENAI_EMBEDDING_MODEL` in `backend/.env`. Changing the model triggers reindexing at startup. Embedding requests send extracted document text and chat questions to OpenAI.
 - Retrieved chunks retain document ID, document name, and page number for citation integration. The answer prompt asks the model to cite sources as `[document name | page N]`; structured citations are still a later task.
+- PDF pages with fewer than 20 selectable characters are treated as scanned and OCR'd with Tesseract (PyMuPDF renders at 300 DPI, pytesseract reads). OCR runs in a separate `ocr` processing stage. Pages keep their numbers. Each page stores `ocr`, `ocr_confidence`, and `low_quality` (set when mean word confidence is below 60, when OCR text is empty, or when a scanned page could not be OCR'd). The library shows a warning listing low-quality pages; the warning appears after a reload for freshly uploaded documents.
+- OCR needs the Tesseract binary on the machine (on PATH, or set `TESSERACT_CMD` in `backend/.env`). Set `OCR_LANGUAGES` (default `eng`, e.g. `eng+fra`) for other languages. Without Tesseract, a PDF with only scanned pages fails with an install message; mixed PDFs still import with the scanned pages flagged.
 - A new app launch opens a fresh chat; saved conversations remain accessible from Chat history.
 
 ## Recent UI features
@@ -41,7 +43,9 @@ Use this note to continue work on DocBuddy in a fresh context. The repository is
 - `backend/src/api/collections.py`: collection endpoints.
 - `backend/src/api/documents.py`: document upload, status, file, delete, and membership endpoints.
 - `backend/src/services/document_storage.py`: streamed PDF save and file deletion.
-- `backend/src/services/document_processing.py`: PDF text extraction and handoff to indexing.
+- `backend/src/services/document_extractors.py`: PDF page extraction (pypdf, with OCR for scanned pages) and DOCX section extraction.
+- `backend/src/services/ocr.py`: Tesseract availability check, page rendering and OCR, confidence scoring (`OCR_CONFIDENCE_THRESHOLD`).
+- `backend/src/services/document_processing.py`: extraction stages, page persistence, and handoff to indexing.
 - `backend/src/services/document_indexing.py`: page chunking, embedding batches, SQLite index persistence, and per-document index status.
 - `backend/src/services/document_retrieval.py`: question embeddings, selected-document cosine ranking, and source-aware context formatting.
 - `backend/src/services/openai_clients.py`: shared synchronous and asynchronous OpenAI clients.
@@ -53,14 +57,15 @@ Use this note to continue work on DocBuddy in a fresh context. The repository is
 
 ## Next planned task
 
-Task 3 RAG retrieval is implemented across the document indexing, retrieval, and OpenAI services. The next follow-up can add structured citation persistence and clickable citation metadata to assistant messages. Existing disk-backed PDF storage and conversation persistence remain in place.
+Task 3 RAG retrieval is implemented across the document indexing, retrieval, and OpenAI services. Roadmap item 6 (OCR support for scanned PDF pages) is implemented but uncommitted: it covers the OCR service, the extraction and processing changes, the new `document_pages` columns, the `ocr` stage and low-quality warnings in the UI, and a 30-minute processing poll limit. The next follow-up can add structured citation persistence and clickable citation metadata to assistant messages. Existing disk-backed PDF storage and conversation persistence remain in place.
 
 ## Verification and environment notes
 
 - After the modularity refactor, `npm.cmd run lint` and `npm.cmd run build` passed from `frontend/`.
 - `python -m compileall -q src` passed from `backend/`.
 - After RAG implementation, frontend lint/build and backend Python compilation passed. Backend API behavior has not been run end to end in the current Python environment because FastAPI is not installed there.
-- Install backend dependencies from `backend/requirements.txt` or use the project runtime before confirming upload, extraction, startup migration, indexing, and restart recovery end to end.
+- Install backend dependencies from `backend/requirements.txt` or use the project runtime before confirming upload, extraction, startup migration, indexing, and restart recovery end to end. The OCR packages (`pymupdf`, `pytesseract`, `pillow`) are now in requirements and were installed in the local Python 3.14 environment.
+- OCR verification so far: `python -m compileall -q src` and frontend `npm.cmd run lint` and `npm.cmd run build` pass. A generated blank-page PDF produces the "needs Tesseract" error when Tesseract is missing, and OCR text assembly and confidence averaging were checked on sample data. The Tesseract binary is not installed on this machine, so real OCR, the `ocr` stage, and the warning UI are not yet tested end to end. Install Tesseract (for example the UB Mannheim Windows build) and test with a scanned PDF and a mixed text/scan PDF.
 - The RAG implementation is currently uncommitted. A modified `backend/data/database.db` was present before this RAG work and has been preserved; inspect `git status` and do not reset or replace the database.
 
 ## Git and personal data

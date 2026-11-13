@@ -83,6 +83,9 @@ def initialize_database() -> None:
                 page_number INTEGER NOT NULL CHECK (page_number > 0),
                 text TEXT NOT NULL,
                 label TEXT,
+                ocr INTEGER NOT NULL DEFAULT 0 CHECK (ocr IN (0, 1)),
+                ocr_confidence REAL,
+                low_quality INTEGER NOT NULL DEFAULT 0 CHECK (low_quality IN (0, 1)),
                 PRIMARY KEY (document_id, page_number)
             );
             CREATE TABLE IF NOT EXISTS document_chunks (
@@ -182,6 +185,12 @@ def initialize_database() -> None:
         page_columns = {row["name"] for row in connection.execute("PRAGMA table_info(document_pages)")}
         if "label" not in page_columns:
             connection.execute("ALTER TABLE document_pages ADD COLUMN label TEXT")
+        if "ocr" not in page_columns:
+            connection.execute("ALTER TABLE document_pages ADD COLUMN ocr INTEGER NOT NULL DEFAULT 0 CHECK (ocr IN (0, 1))")
+        if "ocr_confidence" not in page_columns:
+            connection.execute("ALTER TABLE document_pages ADD COLUMN ocr_confidence REAL")
+        if "low_quality" not in page_columns:
+            connection.execute("ALTER TABLE document_pages ADD COLUMN low_quality INTEGER NOT NULL DEFAULT 0 CHECK (low_quality IN (0, 1))")
         connection.execute("UPDATE documents SET processing_stage='failed' WHERE status='failed'")
         connection.execute("UPDATE documents SET processing_stage='extracting' WHERE status='uploading'")
         _migrate_document_files(connection)

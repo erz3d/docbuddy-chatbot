@@ -1,6 +1,7 @@
 # Extract citable text units from PDF and Word files.
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,9 +11,13 @@ from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 from pypdf import PdfReader
 
+from src.services.ocr import OCR_CONFIDENCE_THRESHOLD, ocr_available, ocr_pages
+
 PDF_MIME = "application/pdf"
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 MAX_SECTION_CHARS = 6000
+# Pages with fewer selectable characters than this are treated as scanned and sent to OCR.
+SCANNED_PAGE_MIN_CHARS = 20
 
 _HEADING_STYLE = re.compile(r"^(?:heading|titre)\s*(\d+)$", re.IGNORECASE)
 
@@ -24,20 +29,26 @@ class ExtractionError(Exception):
 @dataclass(frozen=True)
 class ExtractedUnit:
     # One citable unit: a PDF page (no label) or a Word section (labelled).
+    # OCR fields are set only for PDF pages that were read with OCR or could not be read at all.
 
     text: str
     label: str | None = None
+    ocr: bool = False
+    confidence: float | None = None
+    low_quality: bool = False
 
 
-def extract_units(path: str | Path, mime_type: str) -> list[ExtractedUnit]:
+def extract_units(
+    path: str | Path, mime_type: str, on_ocr_start: Callable[[], None] | None = None
+) -> list[ExtractedUnit]:
     # Pick the extractor matching the stored file type.
     if mime_type == DOCX_MIME:
         return extract_docx_sections(path)
-    return extract_pdf_pages(path)
+    return extract_pdf_pages(path, on_ocr_start)
 
 
-def extract_pdf_pages(path: str | Path) -> list[ExtractedUnit]:
-    # Return one unit per PDF page, rejecting empty, scanned or unreadable files.
+def extract_pdf_pages(path: str | Path, on_ocr_start: Callable[[], None] | None = None) -> list[ExtractedUnit]:
+    # Return one unit per PDF page. Pages without selectable text are OCR'd when Tesseract is available.
     try:
         reader = PdfReader(str(path))
         pages = [(page.extract_text() or "") for page in reader.pages]
@@ -47,9 +58,35 @@ def extract_pdf_pages(path: str | Path) -> list[ExtractedUnit]:
         ) from exc
     if not pages:
         raise ExtractionError("This PDF contains no pages.")
-    if not any(text.strip() for text in pages):
-        raise ExtractionError("No selectable text was found. Scanned PDF OCR is not available yet.")
-    return [ExtractedUnit(text) for text in pages]
+
+    scanned = [index for index, text in enumerate(pages) if len(text.strip()) < SCANNED_PAGE_MIN_CHARS]
+    ocr_results: dict[int, tuple[str, float | None]] = {}
+    if scanned and ocr_available():
+        if on_ocr_start:
+            on_ocr_start()
+        ocr_results = ocr_pages(path, scanned)
+
+    units: list[ExtractedUnit] = []
+    for index, text in enumerate(pages):
+        if index not in scanned:
+            units.append(ExtractedUnit(text))
+            continue
+        if index not in ocr_results:
+            # Not OCR'd: either OCR is unavailable or this page failed to OCR. Keep the page with a flag.
+            units.append(ExtractedUnit(text.strip(), low_quality=True))
+            continue
+        ocr_text, confidence = ocr_results[index]
+        low = not ocr_text.strip() or confidence is None or confidence < OCR_CONFIDENCE_THRESHOLD
+        units.append(ExtractedUnit(ocr_text.strip(), ocr=True, confidence=confidence, low_quality=low))
+
+    if not any(unit.text.strip() for unit in units):
+        if scanned and not ocr_available():
+            raise ExtractionError(
+                "This PDF appears to be scanned, and OCR needs Tesseract, which is not installed. "
+                "Install Tesseract OCR and try again."
+            )
+        raise ExtractionError("No readable text was found in this PDF, even after OCR.")
+    return units
 
 
 def extract_docx_sections(path: str | Path) -> list[ExtractedUnit]:
