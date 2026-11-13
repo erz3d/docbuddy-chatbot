@@ -44,13 +44,24 @@ def list_documents():
     with get_connection() as db:
         rows = db.execute("SELECT id,name,size_bytes,collection_id,status,processing_stage,processing_error,added_at FROM documents ORDER BY added_at DESC").fetchall()
         memberships = db.execute("SELECT document_id, collection_id FROM document_collections").fetchall()
+        low_quality = _low_quality_pages_by_document(db)
     by_document: dict[str, list[str]] = {}
     for membership in memberships:
         by_document.setdefault(membership["document_id"], []).append(membership["collection_id"])
     return [{"id": r["id"], "name": r["name"], "size": r["size_bytes"],
              "collectionId": r["collection_id"], "collectionIds": by_document.get(r["id"], []), "status": r["status"],
              "stage": r["processing_stage"], "error": r["processing_error"],
+             "lowQualityPages": low_quality.get(r["id"], []),
              "addedAt": r["added_at"]} for r in rows]
+
+
+def _low_quality_pages_by_document(db) -> dict[str, list[int]]:
+    # Page numbers whose text was OCR'd with low confidence or could not be read, per document.
+    rows = db.execute("SELECT document_id,page_number FROM document_pages WHERE low_quality=1 ORDER BY page_number").fetchall()
+    pages: dict[str, list[int]] = {}
+    for row in rows:
+        pages.setdefault(row["document_id"], []).append(row["page_number"])
+    return pages
 
 
 @router.post("/api/documents")
@@ -97,10 +108,11 @@ def get_document_sections(document_id: str):
         if not db.execute("SELECT 1 FROM documents WHERE id=?", (document_id,)).fetchone():
             raise HTTPException(404, "Document not found")
         rows = db.execute(
-            "SELECT page_number,label,text FROM document_pages WHERE document_id=? ORDER BY page_number",
+            "SELECT page_number,label,text,ocr,ocr_confidence,low_quality FROM document_pages WHERE document_id=? ORDER BY page_number",
             (document_id,),
         ).fetchall()
-    return [{"number": r["page_number"], "label": r["label"], "text": r["text"]} for r in rows]
+    return [{"number": r["page_number"], "label": r["label"], "text": r["text"],
+             "ocr": bool(r["ocr"]), "confidence": r["ocr_confidence"], "lowQuality": bool(r["low_quality"])} for r in rows]
 
 
 @router.get("/api/documents/{document_id}/sheets")
@@ -149,9 +161,14 @@ def get_document_status(document_id: str):
     # Return the current extraction status and any user-facing error.
     with get_connection() as db:
         row = db.execute("SELECT status,processing_stage,processing_error FROM documents WHERE id=?", (document_id,)).fetchone()
+        low_quality = db.execute(
+            "SELECT page_number FROM document_pages WHERE document_id=? AND low_quality=1 ORDER BY page_number",
+            (document_id,),
+        ).fetchall()
     if not row:
         raise HTTPException(404, "Document not found")
-    return {"status": row["status"], "stage": row["processing_stage"], "error": row["processing_error"]}
+    return {"status": row["status"], "stage": row["processing_stage"], "error": row["processing_error"],
+            "lowQualityPages": [r["page_number"] for r in low_quality]}
 
 
 @router.patch("/api/documents/{document_id}")

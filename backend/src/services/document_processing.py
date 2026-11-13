@@ -18,6 +18,10 @@ def process_document(document_id: str) -> None:
             (document_id,),
         )
 
+    def mark_ocr_started() -> None:
+        with get_connection() as db:
+            db.execute("UPDATE documents SET processing_stage='ocr' WHERE id=?", (document_id,))
+
     try:
         units = extract_units(row["file_path"], row["mime_type"], row["name"])
         error = None

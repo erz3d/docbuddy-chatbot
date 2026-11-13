@@ -16,6 +16,7 @@ interface DocumentProcessingStatus {
   status: UploadedDocument["status"];
   stage: DocumentProcessingStage;
   error?: string | null;
+  lowQualityPages?: number[];
 }
 
 export const UPLOAD_ACCEPT =
@@ -48,12 +49,14 @@ export async function waitForDocumentProcessing(
   documentId: string,
   onStatus?: (status: DocumentProcessingStatus["status"], stage: DocumentProcessingStage, error?: string | null) => void,
 ): Promise<void> {
-  for (let attempt = 0; attempt < 600; attempt += 1) {
+  // 3600 checks at 500 ms is about 30 minutes, enough for OCR of long scanned PDFs.
+  const maxAttempts = 3600;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     let result: DocumentProcessingStatus;
     try {
       result = await api<DocumentProcessingStatus>(`/api/documents/${documentId}/status`);
     } catch (error) {
-      if (attempt === 599) throw error;
+      if (attempt === maxAttempts - 1) throw error;
       await delay(500);
       continue;
     }
