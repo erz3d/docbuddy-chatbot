@@ -23,6 +23,7 @@ import type {
 import { isSpreadsheetDocument } from "../../services/documentService";
 import MessageInput from "./MessageInput";
 import PythonExecutionBlock from "./PythonExecutionBlock";
+import AssistantMarkdown from "./AssistantMarkdown";
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -257,15 +258,13 @@ export default function ChatWindow({
                       {message.role === "assistant" ? "DocBuddy" : "You"}
                     </p>
 
-                    <div
-                      className={`whitespace-pre-wrap text-sm leading-7 ${
-                        message.role === "user"
-                          ? "app-surface rounded-2xl rounded-tr-sm px-4 py-3"
-                          : ""
-                      }`}
-                    >
-                      {message.content}
-                    </div>
+                    {message.role === "assistant" ? (
+                      <AssistantMarkdown content={message.content} />
+                    ) : (
+                      <div className="app-surface whitespace-pre-wrap rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-7">
+                        {message.content}
+                      </div>
+                    )}
                     {message.pythonExecutions?.map((execution, index) => (
                       <PythonExecutionBlock key={`${message.id}-run-${index}`} execution={execution} />
                     ))}
