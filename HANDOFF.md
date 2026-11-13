@@ -42,11 +42,14 @@ Use this note to continue work on DocBuddy in a fresh context. The repository is
 - `frontend/src/hooks/useWorkspaceLoader.ts`: loads persisted workspace state and resumes polling for documents still extracting.
 - `frontend/src/hooks/useDocumentUploads.ts`: staged chat uploads, library uploads, extraction polling, and cleanup.
 - `frontend/src/services/documentService.ts`: upload API call and processing-status polling.
-- `frontend/src/components/pdf/SpreadsheetViewer.tsx`: spreadsheet preview and persisted sheet-selection controls.
+- `frontend/src/components/documents/DocumentViewer.tsx`: format dispatcher for PDF, Word, and spreadsheet previews.
+- `frontend/src/components/documents/SpreadsheetViewer.tsx`: spreadsheet preview and persisted sheet-selection controls.
+- `frontend/src/components/documents/SectionViewer.tsx`: extracted Word section viewer.
 - `backend/src/api/collections.py`: collection endpoints.
 - `backend/src/api/documents.py`: document upload, status, file, spreadsheet preview/selection, delete, and membership endpoints.
 - `backend/src/services/document_storage.py`: streamed original-file save and file deletion.
 - `backend/src/services/document_extractors.py`: PDF page, DOCX section, CSV sheet, and XLSX sheet extraction.
+- `backend/src/services/ocr.py`: scanned PDF OCR through PyMuPDF, pytesseract, and the external Tesseract binary.
 - `backend/src/services/document_processing.py`: extraction, structured unit persistence, and handoff to indexing.
 - `backend/src/services/document_indexing.py`: page chunking, embedding batches, SQLite index persistence, and per-document index status.
 - `backend/src/services/document_retrieval.py`: question embeddings, selected-document cosine ranking, and source-aware context formatting.
@@ -61,7 +64,7 @@ Use this note to continue work on DocBuddy in a fresh context. The repository is
 
 - RAG retrieval and structured citation persistence/clickable citation metadata are implemented.
 - Spreadsheet support for CSV/XLSX upload, extraction, preview, sheet selection, RAG filtering, and sheet citations is implemented in commit `8c42002` (`Spreadsheet support implemented`). No lint/build or end-to-end checks have been recorded for this spreadsheet change.
-- OCR support is **not present in the current source tree**. Scanned PDFs without selectable text fail extraction; do not rely on older OCR notes from prior handoffs.
+- OCR code is present, but `pymupdf`, `pytesseract`, and `pillow` are not listed in the current `backend/requirements.txt`. OCR also requires the Tesseract binary; configure `TESSERACT_CMD` and `OCR_LANGUAGES` in `backend/.env` as needed.
 - The next task is not specified yet. Preserve disk-backed document storage and conversation persistence when continuing.
 
 ## Verification and environment notes
