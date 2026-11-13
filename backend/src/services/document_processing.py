@@ -18,8 +18,12 @@ def process_document(document_id: str) -> None:
             (document_id,),
         )
 
+    def mark_ocr_started() -> None:
+        with get_connection() as db:
+            db.execute("UPDATE documents SET processing_stage='ocr' WHERE id=?", (document_id,))
+
     try:
-        units = extract_units(row["file_path"], row["mime_type"])
+        units = extract_units(row["file_path"], row["mime_type"], mark_ocr_started)
         error = None
     except ExtractionError as exc:
         units = []
@@ -41,8 +45,11 @@ def process_document(document_id: str) -> None:
         with get_connection() as db:
             db.execute("DELETE FROM document_pages WHERE document_id=?", (document_id,))
             db.executemany(
-                "INSERT INTO document_pages(document_id,page_number,text,label) VALUES(?,?,?,?)",
-                [(document_id, number, unit.text, unit.label) for number, unit in enumerate(units, 1)],
+                "INSERT INTO document_pages(document_id,page_number,text,label,ocr,ocr_confidence,low_quality) VALUES(?,?,?,?,?,?,?)",
+                [
+                    (document_id, number, unit.text, unit.label, int(unit.ocr), unit.confidence, int(unit.low_quality))
+                    for number, unit in enumerate(units, 1)
+                ],
             )
             db.execute(
                 "UPDATE documents SET status='uploading',processing_stage='ready_for_indexing',processing_error=NULL WHERE id=?",

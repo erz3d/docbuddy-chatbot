@@ -6,6 +6,7 @@ export type Page = "chat" | "documents" | "settings" | "archive" | "history";
 export type DocumentProcessingStage =
   | "uploading"
   | "extracting"
+  | "ocr"
   | "ready_for_indexing"
   | "indexing"
   | "indexed"
@@ -20,6 +21,8 @@ export interface DocumentItem {
   status: "ready" | "uploading" | "failed";
   stage?: DocumentProcessingStage;
   error?: string | null;
+  // Page numbers whose OCR text is unreliable or missing.
+  lowQualityPages?: number[];
   collectionId: string | null;
   collectionIds?: string[];
   url?: string;

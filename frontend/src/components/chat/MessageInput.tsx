@@ -111,7 +111,7 @@ export default function MessageInput({
                       </span>
                       <span className="min-w-0 flex-1 text-left">
                         <span className="block truncate">{doc.name}</span>
-                        {doc.error ? <span className="block truncate text-[10px] text-red-400">{doc.error}</span> : doc.stage === "extracting" ? <span className="app-muted block text-[10px]">Extracting text…</span> : null}
+                        {doc.error ? <span className="block truncate text-[10px] text-red-400">{doc.error}</span> : doc.stage === "extracting" ? <span className="app-muted block text-[10px]">Extracting text…</span> : doc.stage === "ocr" ? <span className="app-muted block text-[10px]">Running OCR…</span> : null}
                       </span>
                     </button>
                   ))
