@@ -82,6 +82,7 @@ def initialize_database() -> None:
                 document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
                 page_number INTEGER NOT NULL CHECK (page_number > 0),
                 text TEXT NOT NULL,
+                label TEXT,
                 PRIMARY KEY (document_id, page_number)
             );
             CREATE TABLE IF NOT EXISTS document_chunks (
@@ -148,7 +149,9 @@ def initialize_database() -> None:
                 message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
                 document_id TEXT REFERENCES documents(id) ON DELETE SET NULL,
                 document_name TEXT NOT NULL,
-                page INTEGER NOT NULL CHECK (page > 0)
+                page INTEGER NOT NULL CHECK (page > 0),
+                excerpt TEXT NOT NULL DEFAULT '',
+                label TEXT
             );
 
             CREATE TABLE IF NOT EXISTS app_settings (
@@ -171,6 +174,14 @@ def initialize_database() -> None:
             connection.execute("ALTER TABLE documents ADD COLUMN processing_error TEXT")
         if "processing_stage" not in document_columns:
             connection.execute("ALTER TABLE documents ADD COLUMN processing_stage TEXT NOT NULL DEFAULT 'ready_for_indexing'")
+        citation_columns = {row["name"] for row in connection.execute("PRAGMA table_info(citations)")}
+        if "excerpt" not in citation_columns:
+            connection.execute("ALTER TABLE citations ADD COLUMN excerpt TEXT NOT NULL DEFAULT ''")
+        if "label" not in citation_columns:
+            connection.execute("ALTER TABLE citations ADD COLUMN label TEXT")
+        page_columns = {row["name"] for row in connection.execute("PRAGMA table_info(document_pages)")}
+        if "label" not in page_columns:
+            connection.execute("ALTER TABLE document_pages ADD COLUMN label TEXT")
         connection.execute("UPDATE documents SET processing_stage='failed' WHERE status='failed'")
         connection.execute("UPDATE documents SET processing_stage='extracting' WHERE status='uploading'")
         _migrate_document_files(connection)

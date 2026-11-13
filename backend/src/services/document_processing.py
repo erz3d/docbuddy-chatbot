@@ -1,17 +1,16 @@
 # Extract page text, create document indexes, and record processing results.
 
-from pathlib import Path
-
-from pypdf import PdfReader
+import logging
 
 from src.database import get_connection
+from src.services.document_extractors import ExtractionError, extract_units
 from src.services.document_indexing import index_document
 
 
 def process_document(document_id: str) -> None:
-    # Extract a PDF's page text and persist either the result or a clear error.
+    # Extract a document's citable text units and persist either the result or a clear error.
     with get_connection() as db:
-        row = db.execute("SELECT file_path FROM documents WHERE id=?", (document_id,)).fetchone()
+        row = db.execute("SELECT file_path,mime_type FROM documents WHERE id=?", (document_id,)).fetchone()
         if not row:
             return
         db.execute(
@@ -20,17 +19,15 @@ def process_document(document_id: str) -> None:
         )
 
     try:
-        reader = PdfReader(str(Path(row["file_path"])))
-        pages = [(page.extract_text() or "") for page in reader.pages]
-        if not pages:
-            error = "This PDF contains no pages."
-        elif not any(text.strip() for text in pages):
-            error = "No selectable text was found. Scanned PDF OCR is not available yet."
-        else:
-            error = None
+        units = extract_units(row["file_path"], row["mime_type"])
+        error = None
+    except ExtractionError as exc:
+        units = []
+        error = str(exc)
     except Exception:
-        pages = []
-        error = "This PDF is damaged, encrypted, or unreadable. Re-export it as a standard PDF and try again."
+        logging.exception("Could not extract text from document %s", document_id)
+        units = []
+        error = "This file could not be read. Check that it is not damaged and try again."
 
     if error:
         with get_connection() as db:
@@ -44,8 +41,8 @@ def process_document(document_id: str) -> None:
         with get_connection() as db:
             db.execute("DELETE FROM document_pages WHERE document_id=?", (document_id,))
             db.executemany(
-                "INSERT INTO document_pages(document_id,page_number,text) VALUES(?,?,?)",
-                [(document_id, number, text) for number, text in enumerate(pages, 1)],
+                "INSERT INTO document_pages(document_id,page_number,text,label) VALUES(?,?,?,?)",
+                [(document_id, number, unit.text, unit.label) for number, unit in enumerate(units, 1)],
             )
             db.execute(
                 "UPDATE documents SET status='uploading',processing_stage='ready_for_indexing',processing_error=NULL WHERE id=?",
@@ -56,5 +53,5 @@ def process_document(document_id: str) -> None:
         with get_connection() as db:
             db.execute(
                 "UPDATE documents SET status='failed',processing_stage='failed',processing_error=? WHERE id=?",
-                ("Could not save the extracted text. Please try uploading the PDF again.", document_id),
+                ("Could not save the extracted text. Please try uploading the file again.", document_id),
             )

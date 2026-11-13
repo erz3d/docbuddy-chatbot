@@ -20,6 +20,7 @@ class RetrievedChunk:
     page_number: int
     text: str
     score: float
+    label: str | None = None
 
 
 async def retrieve_relevant_chunks(question: str, document_ids: list[str]) -> list[RetrievedChunk]:
@@ -31,8 +32,10 @@ async def retrieve_relevant_chunks(question: str, document_ids: list[str]) -> li
     placeholders = ",".join("?" for _ in selected_ids)
     with get_connection() as db:
         rows = db.execute(
-            f"""SELECT c.document_id,d.name,c.page_number,c.text,c.embedding
+            f"""SELECT c.document_id,d.name,c.page_number,c.text,c.embedding,p.label
                 FROM document_chunks c JOIN documents d ON d.id=c.document_id
+                LEFT JOIN document_pages p
+                  ON p.document_id=c.document_id AND p.page_number=c.page_number
                 WHERE d.status='ready' AND c.embedding_model=?
                   AND c.document_id IN ({placeholders})""",
             [EMBEDDING_MODEL, *selected_ids],
@@ -68,6 +71,7 @@ async def retrieve_relevant_chunks(question: str, document_ids: list[str]) -> li
                 page_number=row["page_number"],
                 text=row["text"],
                 score=score,
+                label=row["label"],
             )
         )
 
@@ -75,8 +79,11 @@ async def retrieve_relevant_chunks(question: str, document_ids: list[str]) -> li
 
 
 def format_retrieved_context(chunks: list[RetrievedChunk]) -> str:
-    # Format retrieved text with source labels that the model can cite.
-    return "\n\n".join(
-        f"[{chunk.document_name} | page {chunk.page_number}]\n{chunk.text}"
-        for chunk in chunks
-    )
+    return "\n\n".join(_format_chunk(chunk) for chunk in chunks)
+
+
+def _format_chunk(chunk: RetrievedChunk) -> str:
+    # Word sections are cited by section number; PDF pages by page number.
+    if chunk.label:
+        return f"[{chunk.document_name} | section {chunk.page_number}]\nSection: {chunk.label}\n{chunk.text}"
+    return f"[{chunk.document_name} | page {chunk.page_number}]\n{chunk.text}"

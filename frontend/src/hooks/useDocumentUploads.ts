@@ -3,7 +3,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { DocumentItem } from "../types";
 import { documentFileUrl } from "../services/api";
-import { uploadDocument, waitForDocumentProcessing } from "../services/documentService";
+import { uploadDocument, waitForDocumentProcessing, isSupportedUpload } from "../services/documentService";
 
 type SetDocuments = Dispatch<SetStateAction<DocumentItem[]>>;
 type SetPinnedDocuments = (ids: string[], persist?: boolean) => void;
@@ -33,8 +33,8 @@ export function useDocumentUploads({
   const uploadFiles = (files: FileList | null, fromLibrary = false) => {
     if (!files) return;
     Array.from(files).forEach((file) => {
-      if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-        window.alert(`${file.name}: unsupported file type. Please upload a PDF.`);
+      if (!isSupportedUpload(file.name)) {
+        window.alert(`${file.name}: unsupported file type. Please upload a PDF or a Word (.docx) document.`);
         return;
       }
 

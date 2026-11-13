@@ -9,6 +9,7 @@ import {
   Check,
 } from "lucide-react";
 import type { DocumentItem } from "../../types";
+import { UPLOAD_ACCEPT } from "../../services/documentService";
 
 interface MessageInputProps {
   documents: DocumentItem[];
@@ -61,7 +62,7 @@ export default function MessageInput({
           <input
             ref={fileInput}
             type="file"
-            accept="application/pdf"
+            accept={UPLOAD_ACCEPT}
             multiple
             className="hidden"
             onChange={(e) => {

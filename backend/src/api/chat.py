@@ -22,12 +22,19 @@ class IncomingMessage(BaseModel):
     liked: bool | None = None
     timestamp: str | int | None = None
 
+class CitationOut(BaseModel):
+    documentId: str
+    documentName: str
+    page: int
+    excerpt: str
+    label: str | None = None
 
 class ChatResponse(BaseModel):
     content: str
     id: str
     timestamp: str
     conversationId: str
+    citations: list[CitationOut] = Field(default_factory=list)
 
 class ChatRequest(BaseModel):
     messages: list[IncomingMessage]
@@ -59,8 +66,14 @@ async def chat(request: ChatRequest):
 
         messages = [{"role": message.role, "content": message.content} for message in request.messages]
         answer = await generate_response(messages, request.documentIds)
-        answer_time = persist_assistant_message(conversation_id, answer_id, answer)
-        return {"content": answer, "id": answer_id, "timestamp": answer_time, "conversationId": conversation_id}
+        answer_time = persist_assistant_message(conversation_id, answer_id, answer.content, answer.citations)
+        return {
+            "content": answer.content,
+            "id": answer_id,
+            "timestamp": answer_time,
+            "conversationId": conversation_id,
+            "citations": answer.citations,
+        }
 
     except HTTPException:
         raise

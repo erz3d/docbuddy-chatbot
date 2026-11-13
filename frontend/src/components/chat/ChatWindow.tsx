@@ -271,10 +271,14 @@ export default function ChatWindow({
                           <button
                             key={`${citation.documentId}-${index}`}
                             onClick={() => onCitation(citation)}
+                            title={citation.excerpt || undefined}
                             className="flex items-center gap-1.5 rounded-lg border border-teal-500/20 bg-teal-500/5 px-2.5 py-1.5 text-[11px] text-teal-500 hover:bg-teal-500/10"
                           >
                             <FileText size={12} />
-                            {citation.documentName}, p. {citation.page}
+                            <span className="max-w-[320px] truncate">
+                              {citation.documentName},{" "}
+                              {citation.label ? `§ ${citation.label}` : `p. ${citation.page}`}
+                            </span>
                           </button>
                         ))}
                       </div>

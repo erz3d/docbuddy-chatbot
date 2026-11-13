@@ -15,6 +15,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import type { Collection, ConversationItem, DocumentItem } from "../../types";
+import { UPLOAD_ACCEPT } from "../../services/documentService";
 
 interface DocumentLibraryProps {
   documents: DocumentItem[];
@@ -238,7 +239,7 @@ export default function DocumentLibrary({
           <input
             ref={fileInput}
             type="file"
-            accept="application/pdf"
+            accept={UPLOAD_ACCEPT}
             multiple
             className="hidden"
             onChange={(e) => {

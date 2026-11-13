@@ -263,7 +263,7 @@ export default function App() {
         id: result.id,
         role: "assistant",
         content,
-        citations: [],
+        citations: result.citations ?? [],
         timestamp: Date.parse(result.timestamp),
       };
       setMessages((current) => {
